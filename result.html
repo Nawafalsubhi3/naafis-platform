@@ -62,15 +62,17 @@
   </script>
 
   <script>
-    // عرض النتيجة الشخصية
+    // ✅ عرض النتيجة الشخصية
     const res = JSON.parse(sessionStorage.getItem('result'));
+    console.log('النتيجة في result.html:', res);
     if (res) {
       document.getElementById('yourScore').textContent = `${res.correctCount} / 40`;
     } else {
       document.getElementById('yourScore').textContent = 'غير متاحة';
+      console.warn('لا توجد نتيجة في sessionStorage');
     }
 
-    // عرض لوحة الشرف
+    // ✅ عرض لوحة الشرف
     db.collection('results')
       .where('weekId', '==', 'week1')
       .orderBy('correctCount', 'desc')
