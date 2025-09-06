@@ -184,35 +184,42 @@
       await saveTempAnswer();
       if (confirm('سيتم حفظ إجاباتك والخروج.. هل تريد المتابعة؟')) {
         clearInterval(timer);
-        location.href = 'index.html';  // ← أزل التعليق
+        location.href = 'index.html';
       }
     }
 
+    // ✅ دالة الإرسال النهائي (مع التأكد من الانتقال)
     async function submitAll() {
-      let correctCount = 0;
-      questions.slice(0, 40).forEach(q => {          // ← بالضبط ٤٠
-        if (answers[q.id] === q.correctIndex) correctCount++;
-      });
-      const timeSpent = (45 * 60) - timeLeft;
-      await db.collection('results').add({
-        studentName: student.fullName,
-        weekId: 'week1',
-        correctCount,
-        timeSeconds: timeSpent,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-      });
-      const tempSnap = await db.collection('answers_temp')
-                               .where('studentId', '==', student.id)
-                               .get();
-      tempSnap.forEach(doc => doc.ref.delete());
-      await updateItemAnalysis();
-      sessionStorage.setItem('result', JSON.stringify({
-        correctCount,
-        timeSpent,
-        weekId: 'week1'
-      }));
-      alert(`✅ تم الإرسال بنجاح! النتيجة: ${correctCount}/40`);
-      location.href = 'result.html';  // ← أزل التعليق
+      try {
+        let correctCount = 0;
+        questions.slice(0, 40).forEach(q => {
+          if (answers[q.id] === q.correctIndex) correctCount++;
+        });
+        const timeSpent = (45 * 60) - timeLeft;
+
+        // ✅ إرسال النتيجة إلى Firestore
+        await db.collection('results').add({
+          studentName: student.fullName,
+          weekId: 'week1',
+          correctCount: correctCount,
+          timeSeconds: timeSpent,
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        // ✅ حفظ النتيجة محليًا
+        sessionStorage.setItem('result', JSON.stringify({
+          correctCount: correctCount,
+          timeSeconds: timeSpent,
+          weekId: 'week1'
+        }));
+
+        // ✅ الانتقال الفوري إلى صفحة النتائج
+        location.href = 'result.html';
+
+      } catch (error) {
+        console.error('خطأ في الإرسال:', error);
+        alert('حدث خطأ أثناء الإرسال، حاول مرة أخرى.');
+      }
     }
 
     // تحديث معاملات السؤال
