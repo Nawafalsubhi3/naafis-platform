@@ -28,6 +28,7 @@
     .nav-buttons .next{background:var(--secondary);color:#fff}
     .nav-buttons .exit{background:var(--danger);color:#fff}
     footer{text-align:center;padding:1rem 0;font-size:.8rem;color:#555}
+    .debug-info{background:#fff3cd;border:1px solid #ffeaa7;padding:1rem;margin:1rem 0;border-radius:8px;font-size:0.9rem}
   </style>
 </head>
 <body>
@@ -44,6 +45,8 @@
   <main>
     <div class="container">
       <div id="questionArea" class="question-card"></div>
+      <!-- معلومات تصحيح الأخطاء (يمكن إزالتها في الإنتاج) -->
+      <div class="debug-info" id="debugInfo" style="display:none;"></div>
       <div class="nav-buttons">
         <button class="prev" id="prevBtn" onclick="changeQuestion(-1)">السابق</button>
         <button class="exit" onclick="saveAndExit()">حفظ وخروج</button>
@@ -77,6 +80,7 @@
     let current   = 0;
     let answers   = {};
     let timeLeft  = 45 * 60;
+    let debugMode = true; // تعيين إلى false في الإنتاج
 
     const student = JSON.parse(sessionStorage.getItem('student'));
     if (!student) location.href = 'login.html';
@@ -97,65 +101,117 @@
       }
     }, 1000);
 
-    // تحميل الأسئلة المختارة (بالضبط ٤٠)
+    // دالة تصحيح الأخطاء
+    function debugLog(message, data = null) {
+      if (debugMode) {
+        console.log(message, data);
+        const debugDiv = document.getElementById('debugInfo');
+        if (debugDiv) {
+          debugDiv.style.display = 'block';
+          debugDiv.innerHTML += `<div><strong>${message}</strong> ${data ? JSON.stringify(data) : ''}</div>`;
+        }
+      }
+    }
+
+    // تحميل الأسئلة المختارة (بالضبط 40)
     async function loadQuestions() {
-      const snap = await db.collection('questions')
-                           .where('weekId', '==', 'week1')
-                           .where('selected', '==', true)
-                           .get();
-      questions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      questions = questions.slice(0, 40);           // ← بالضبط ٤٠
-      questions.sort(() => Math.random() - 0.5);   // خلط عشوائي
+      try {
+        const snap = await db.collection('questions')
+                             .where('weekId', '==', 'week1')
+                             .where('selected', '==', true)
+                             .get();
+        
+        questions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        questions = questions.slice(0, 40);           // بالضبط 40
+        questions.sort(() => Math.random() - 0.5);   // خلط عشوائي
 
-      // استرجاع إجابات محفوظة
-      const savedSnap = await db.collection('answers_temp')
-                                .where('studentId', '==', student.id)
-                                .get();
-      savedSnap.forEach(doc => {
-        const d = doc.data();
-        answers[d.qId] = d.ans;
-      });
+        debugLog('تم تحميل الأسئلة:', { count: questions.length });
+        
+        // تحقق من وجود correctIndex في كل سؤال
+        questions.forEach((q, idx) => {
+          debugLog(`السؤال ${idx + 1}:`, {
+            id: q.id,
+            hasCorrectIndex: q.correctIndex !== undefined,
+            correctIndex: q.correctIndex,
+            choicesCount: q.choices ? q.choices.length : 0
+          });
+        });
 
-      renderQuestion();
+        // استرجاع إجابات محفوظة
+        const savedSnap = await db.collection('answers_temp')
+                                  .where('studentId', '==', student.id)
+                                  .get();
+        savedSnap.forEach(doc => {
+          const d = doc.data();
+          answers[d.qId] = parseInt(d.ans); // تأكد من أن الإجابة رقم صحيح
+        });
+
+        debugLog('الإجابات المحفوظة:', answers);
+        renderQuestion();
+      } catch (error) {
+        console.error('خطأ في تحميل الأسئلة:', error);
+        alert('حدث خطأ في تحميل الأسئلة، حاول مرة أخرى.');
+      }
     }
 
     // عرض السؤال (بدون شرح وبدون اختيار تلقائي)
     function renderQuestion() {
       const q = questions[current];
+      if (!q) {
+        console.error('السؤال غير موجود:', current);
+        return;
+      }
+
       document.getElementById('qNum').textContent  = current + 1;
       document.getElementById('bar').style.width   = `${((current + 1) / 40) * 100}%`;
       document.getElementById('prevBtn').disabled  = current === 0;
       document.getElementById('nextBtn').textContent = current === 39 ? 'إرسال الإجابات' : 'التالي';
 
-      // ✅ إفراغ أي اختيار سابق تمامًا (منع التحديد التلقائي)
+      // إفراغ أي اختيار سابق تماماً (منع التحديد التلقائي)
       document.querySelectorAll('input[name="q"]').forEach(inp => inp.checked = false);
 
       document.getElementById('questionArea').innerHTML = `
         <div class="question-header">
-          <h3>السؤال ${current + 1} من ٤٠</h3>
+          <h3>السؤال ${current + 1} من 40</h3>
           <span>${q.subject === 'math' ? 'رياضيات' : q.subject === 'arabic' ? 'لغة عربية' : 'علوم'}</span>
         </div>
-        <p>${q.questionText}</p>
+        <p>${q.questionText || 'نص السؤال غير متاح'}</p>
         <div class="choices">
-          ${q.choices.map((ch, idx) => `
+          ${q.choices ? q.choices.map((ch, idx) => `
             <input type="radio" name="q" id="c${idx}" value="${idx}" ${answers[q.id] === idx ? 'checked' : ''}>
             <label for="c${idx}">${ch}</label>
-          `).join('')}
+          `).join('') : '<p>الخيارات غير متاحة</p>'}
         </div>
       `;
+
+      debugLog(`عرض السؤال ${current + 1}:`, {
+        questionId: q.id,
+        correctIndex: q.correctIndex,
+        studentAnswer: answers[q.id],
+        hasChoices: !!q.choices
+      });
     }
 
     async function changeQuestion(step) {
+      // حفظ الإجابة الحالية
       const sel = document.querySelector('input[name="q"]:checked');
-      if (sel) answers[questions[current].id] = parseInt(sel.value);
+      if (sel) {
+        const answerValue = parseInt(sel.value);
+        answers[questions[current].id] = answerValue;
+        debugLog(`تم حفظ الإجابة للسؤال ${current + 1}:`, {
+          questionId: questions[current].id,
+          answer: answerValue
+        });
+      }
+      
       await saveTempAnswer();
       sessionStorage.setItem('currentQ', current);
 
-      if (step === 1 && current === 39) {   // ← بالضبط ٣٩ (السؤال الأخير)
+      if (step === 1 && current === 39) {   // بالضبط 39 (السؤال الأخير)
         const sure = confirm('هل أنت متأكد من إرسال الإجابات؟');
         if (sure) {
           clearInterval(timer);
-          await submitAll();               // ← await صريح
+          await submitAll();
         }
         return;
       }
@@ -166,17 +222,27 @@
     async function saveTempAnswer() {
       const qId = questions[current].id;
       if (answers[qId] !== undefined) {
-        const old = await db.collection('answers_temp')
-                            .where('studentId', '==', student.id)
-                            .where('qId', '==', qId)
-                            .get();
-        old.forEach(doc => doc.ref.delete());
-        await db.collection('answers_temp').add({
-          studentId: student.id,
-          qId,
-          ans: answers[qId],
-          timeSeconds: (45 * 60) - timeLeft
-        });
+        try {
+          const old = await db.collection('answers_temp')
+                              .where('studentId', '==', student.id)
+                              .where('qId', '==', qId)
+                              .get();
+          old.forEach(doc => doc.ref.delete());
+          
+          await db.collection('answers_temp').add({
+            studentId: student.id,
+            qId,
+            ans: answers[qId], // تأكد من أنها رقم صحيح
+            timeSeconds: (45 * 60) - timeLeft
+          });
+          
+          debugLog('تم حفظ الإجابة مؤقتاً:', {
+            qId,
+            answer: answers[qId]
+          });
+        } catch (error) {
+          console.error('خطأ في حفظ الإجابة المؤقتة:', error);
+        }
       }
     }
 
@@ -188,45 +254,77 @@
       }
     }
 
-    // ✅ دالة الإرسال النهائي (مع التأكد من الانتقال)
+    // دالة الإرسال النهائي (مع التأكد من الانتقال)
     async function submitAll() {
       try {
-        console.log('بدء الإرسال...');
-        console.log('الإجابات المحفوظة:', answers);
+        debugLog('بدء الإرسال...');
+        debugLog('الإجابات المحفوظة:', answers);
 
         let correctCount = 0;
+        let totalAnswered = 0;
+        
+        // تحليل مفصل لكل سؤال
         questions.slice(0, 40).forEach((q, index) => {
-          const studentAnswer = answers[q.id]; // قد تكون undefined أو null
-          const correctAnswer = q.correctIndex; // قد تكون undefined
+          const studentAnswer = answers[q.id]; // قد تكون undefined أو رقم
+          const correctAnswer = q.correctIndex; // الإجابة الصحيحة
+          
+          debugLog(`تحليل السؤال ${index + 1}:`, {
+            questionId: q.id,
+            studentAnswer: studentAnswer,
+            correctAnswer: correctAnswer,
+            studentAnswerType: typeof studentAnswer,
+            correctAnswerType: typeof correctAnswer,
+            isAnswered: studentAnswer !== undefined,
+            isCorrect: studentAnswer !== undefined && studentAnswer === correctAnswer
+          });
 
-          console.log(`س${index + 1}: الطالب = ${studentAnswer}, الصحيح = ${correctAnswer}, مطابقة؟ ${studentAnswer === correctAnswer}`);
-
-          if (studentAnswer !== undefined && studentAnswer === correctAnswer) {
-            correctCount++;
+          if (studentAnswer !== undefined) {
+            totalAnswered++;
+            // تأكد من أن المقارنة تتم بنفس النوع
+            if (parseInt(studentAnswer) === parseInt(correctAnswer)) {
+              correctCount++;
+              debugLog(`✅ إجابة صحيحة للسؤال ${index + 1}`);
+            } else {
+              debugLog(`❌ إجابة خاطئة للسؤال ${index + 1}`);
+            }
+          } else {
+            debugLog(`⚪ لم يتم الإجابة على السؤال ${index + 1}`);
           }
         });
 
-        console.log('عدد الإجابات الصحيحة:', correctCount);
+        debugLog('النتيجة النهائية:', {
+          correctCount: correctCount,
+          totalAnswered: totalAnswered,
+          totalQuestions: 40
+        });
 
         const timeSpent = (45 * 60) - timeLeft;
 
-        // ✅ إرسال النتيجة إلى Firestore
+        // إرسال النتيجة إلى Firestore
         await db.collection('results').add({
           studentName: student.fullName,
+          studentId: student.id,
           weekId: 'week1',
           correctCount: correctCount,
+          totalAnswered: totalAnswered,
           timeSeconds: timeSpent,
           timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
 
-        // ✅ حفظ النتيجة محليًا
-        sessionStorage.setItem('result', JSON.stringify({
+        debugLog('تم إرسال النتيجة إلى Firebase');
+
+        // حفظ النتيجة محلياً
+        const resultData = {
           correctCount: correctCount,
+          totalAnswered: totalAnswered,
           timeSeconds: timeSpent,
           weekId: 'week1'
-        }));
+        };
+        
+        sessionStorage.setItem('result', JSON.stringify(resultData));
+        debugLog('تم حفظ النتيجة محلياً:', resultData);
 
-        // ✅ الانتقال الفوري إلى صفحة النتائج
+        // الانتقال الفوري إلى صفحة النتائج
         location.href = 'result.html';
 
       } catch (error) {
@@ -237,37 +335,56 @@
 
     // تحديث معاملات السؤال
     async function updateItemAnalysis() {
-      const allResults = await db.collection('results')
-                                 .where('weekId', '==', 'week1')
-                                 .get();
-      const total = allResults.size;
-      if (total < 5) return;
-      const questionsSnap = await db.collection('questions')
-                                    .where('weekId', '==', 'week1')
-                                    .get();
-      for (const qDoc of questionsSnap.docs) {
-        const qId = qDoc.id;
-        const correctIndex = qDoc.data().correctIndex;
-        let correctCount = 0;
-        let allAnswers = [];
-        for (const resDoc of allResults.docs) {
-          const studentName = resDoc.data().studentName;
-          const tempSnap = await db.collection('answers_temp')
-                                   .where('studentId', '==', studentName)
-                                   .where('qId', '==', qId)
-                                   .limit(1)
+      try {
+        const allResults = await db.collection('results')
+                                   .where('weekId', '==', 'week1')
                                    .get();
-          const answer = tempSnap.empty ? null : tempSnap.docs[0].data().ans;
-          if (answer === correctIndex) correctCount++;
-          allAnswers.push({ studentName, answer, totalScore: resDoc.data().correctCount });
+        const total = allResults.size;
+        if (total < 5) return;
+        
+        const questionsSnap = await db.collection('questions')
+                                      .where('weekId', '==', 'week1')
+                                      .get();
+        
+        for (const qDoc of questionsSnap.docs) {
+          const qId = qDoc.id;
+          const correctIndex = qDoc.data().correctIndex;
+          let correctCount = 0;
+          let allAnswers = [];
+          
+          for (const resDoc of allResults.docs) {
+            const studentId = resDoc.data().studentId;
+            const tempSnap = await db.collection('answers_temp')
+                                     .where('studentId', '==', studentId)
+                                     .where('qId', '==', qId)
+                                     .limit(1)
+                                     .get();
+            
+            const answer = tempSnap.empty ? null : parseInt(tempSnap.docs[0].data().ans);
+            if (answer === parseInt(correctIndex)) correctCount++;
+            allAnswers.push({ 
+              studentId, 
+              answer, 
+              totalScore: resDoc.data().correctCount 
+            });
+          }
+          
+          const difficulty = correctCount / total;
+          allAnswers.sort((a, b) => b.totalScore - a.totalScore);
+          const groupSize = Math.max(1, Math.ceil(total * 0.27));
+          const upperCorrect = allAnswers.slice(0, groupSize)
+                                       .filter(s => s.answer === parseInt(correctIndex)).length;
+          const lowerCorrect = allAnswers.slice(-groupSize)
+                                       .filter(s => s.answer === parseInt(correctIndex)).length;
+          const discrimination = (upperCorrect - lowerCorrect) / groupSize;
+          
+          await db.collection('questions').doc(qId).update({ 
+            difficulty, 
+            discrimination 
+          });
         }
-        const difficulty = correctCount / total;
-        allAnswers.sort((a, b) => b.totalScore - a.totalScore);
-        const groupSize = Math.max(1, Math.ceil(total * 0.27));
-        const upperCorrect = allAnswers.slice(0, groupSize).filter(s => s.answer === correctIndex).length;
-        const lowerCorrect = allAnswers.slice(-groupSize).filter(s => s.answer === correctIndex).length;
-        const discrimination = (upperCorrect - lowerCorrect) / groupSize;
-        await db.collection('questions').doc(qId).update({ difficulty, discrimination });
+      } catch (error) {
+        console.error('خطأ في تحديث تحليل الأسئلة:', error);
       }
     }
 
