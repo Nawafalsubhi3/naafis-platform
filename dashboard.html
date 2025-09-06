@@ -80,11 +80,13 @@
 
       <button class="btn" onclick="addQuestion()">حفظ السؤال</button>
 
+      <!-- أزرار إضافية -->
       <h3 style="margin-top:2rem">الأسئلة الحالية</h3>
-      <!-- زر رفع الأسئلة بالجملة -->
       <a class="btn" href="bulk-upload.html" style="margin:.5rem 0;display:inline-block">رفع أسئلة بالجملة</a>
+      <button class="btn" onclick="generateSmartExam()" style="background:var(--accent);color:#000;margin:.5rem 0;">توليد اختبار ذكي (٤٠ سؤال)</button>
+
       <table id="questionsTable">
-        <thead><tr><th>السؤال</th><th>المادة | بلوم | الوسوم | المعاملات</th><th>إجراء</th></tr></thead>
+        <thead><tr><th>السؤال</th><th>المادة | بلوم | الوسوم | المعاملات</th><th>مختار</th><th>إجراء</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -163,6 +165,7 @@
         tbody.insertAdjacentHTML('beforeend',`<tr>
           <td>${d.questionText}</td>
           <td>${d.subject} | ${d.bloomLevel} | ${d.tags.join('،')}<br><small>صعوبة: ${(d.difficulty*100).toFixed(0)}% - تمييز: ${d.discrimination.toFixed(2)}</small></td>
+          <td>${d.selected ? '✅' : ''}</td>
           <td><button class="btn" onclick="deleteQuestion('${doc.id}')">حذف</button></td>
         </tr>`);
       });
@@ -195,6 +198,73 @@
     async function deleteQuestion(id){
       if(confirm('هل تريد حذف السؤال؟')){await db.collection('questions').doc(id).delete(); loadQuestions();}
     }
+
+    // ⭐ دالة التوليد الذكي
+    async function generateSmartExam(){
+      const sure = confirm('سيتم إنشاء ٤٠ سؤالًا متوازنًا تلقائيًا وإسنادهم إلى الأسبوع الحالي (week1). متابعة؟');
+      if(!sure) return;
+
+      const allSnap = await db.collection('questions').where('weekId','==','week1').get();
+      const allQuestions = allSnap.docs.map(d=>({id:d.id,...d.data()}));
+
+      if(allQuestions.length < 40){
+        alert('عدد الأسئلة أقل من ٤٠، أضف المزيد أولاً');
+        return;
+      }
+
+      // التوزيع المطلوب
+      const subjectDist = {math:15, arabic:15, science:10};
+      const bloomDist   = {remember:8, understand:10, apply:10, analyze:7, evaluate:3, create:2};
+
+      // تصفية (تفضيل أسئلة متوسطة الصعوبة وتمييز جيد)
+      const filtered = allQuestions.filter(q =>
+        q.difficulty >= 0.3 && q.difficulty <= 0.7 && q.discrimination >= 0.3
+      );
+
+      if(filtered.length < 40){
+        alert('لا توجد أسئلة كافية ضمن معايير الصعوبة والتمييز');
+        return;
+      }
+
+      const selected = pickByDistribution(filtered, subjectDist, bloomDist, 40);
+
+      // وضع علامة selected=true على الأسئلة المختارة
+      for(const q of selected){
+        await db.collection('questions').doc(q.id).update({selected:true});
+      }
+
+      alert(`✅ تم اختيار ٤٠ سؤالًا متوازنًا بنجاح!\nالمواد: ${JSON.stringify(subjectDist)}\nبلوم: ${JSON.stringify(bloomDist)}`);
+      loadQuestions();
+    }
+
+    // دالة مساعدة: اختيار عشوائي مع التوزيع المطلوب
+    function pickByDistribution(pool, subjDist, bloomDist, total){
+      const picked=[];
+      const poolCopy = [...pool];
+
+      for(const [subj,subjCount] of Object.entries(subjDist)){
+        const subjPool = poolCopy.filter(q=>q.subject===subj);
+        for(const [bloom,bloomCount] of Object.entries(bloomDist)){
+          const bloomSubjPool = subjPool.filter(q=>q.bloomLevel===bloom);
+          const needed = Math.min(bloomCount, bloomSubjPool.length);
+          const shuffled = bloomSubjPool.sort(()=>Math.random()-0.5);
+          for(let i=0;i<needed;i++){
+            picked.push(shuffled[i]);
+          }
+        }
+      }
+
+      // إكمال المتبقي عشوائياً
+      const remaining = total - picked.length;
+      if(remaining>0){
+        const left = poolCopy.filter(q=>!picked.includes(q));
+        const extra = left.sort(()=>Math.random()-0.5).slice(0,remaining);
+        picked.push(...extra);
+      }
+
+      return picked.sort(()=>Math.random()-0.5);
+    }
+
     // تحميل البيانات عند الدخول
     loadResults(); loadQuestions(); loadStudents();
   </script>
