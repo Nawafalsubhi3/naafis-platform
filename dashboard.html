@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <title>لوحة تحكم المعلم – نافس</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--primary:#003865;--secondary:#1e8a4c;--accent:#ffce00;--light:#f5f7fa;--danger:#c62828}
+    body{font-family:'Cairo',sans-serif;background:var(--light);margin:0;color:#222}
+    header{background:var(--primary);color:#fff;padding:1rem 0}
+    .container{width:90%;max-width:1200px;margin:auto}
+    .tabs{display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap}
+    .tabs button{background:#fff;border:2px solid var(--primary);color:var(--primary);padding:.5rem 1.25rem;border-radius:8px;cursor:pointer;font-size:1rem}
+    .tabs button.active{background:var(--primary);color:#fff}
+    .tabcontent{display:none;background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);padding:1.5rem}
+    .tabcontent.active{display:block}
+    table{width:100%;border-collapse:collapse;margin-top:1rem}
+    th,td{padding:.75rem;border:1px solid #ddd;text-align:center}
+    th{background:var(--primary);color:#fff}
+    .btn{background:var(--secondary);color:#fff;border:none;padding:.5rem 1rem;border-radius:6px;cursor:pointer}
+    .btn:hover{background:#166a3a}
+    .input-line{margin:.5rem 0}
+    .input-line input, .input-line select, .input-line textarea{width:100%;padding:.5rem;margin-top:.25rem;border:1px solid #ccc;border-radius:6px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>لوحة تحكم المعلم</h1>
+      <p>وزارة التعليم – متوسطة المنذر بن عمرو الأنصاري</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="tabs">
+      <button class="tabBtn active" onclick="openTab(event,'results')">نتائج الطلاب</button>
+      <button class="tabBtn" onclick="openTab(event,'questions')">إدارة الأسئلة</button>
+      <button class="tabBtn" onclick="openTab(event,'students')">إدارة الطلاب</button>
+    </div>
+
+    <!-- تبويب النتائج -->
+    <div id="results" class="tabcontent active">
+      <h2>نتائج الأسبوع الحالي</h2>
+      <button class="btn" onclick="loadResults()">تحديث</button>
+      <table id="resultsTable">
+        <thead><tr><th>الاسم</th><th>الإجابات الصحيحة</th><th>الوقت (ث)</th><th>الترتيب</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- تبويب الأسئلة -->
+    <div id="questions" class="tabcontent">
+      <h2>إضافة سؤال جديد</h2>
+      <div class="input-line"><select id="qSubject"><option value="math">رياضيات</option><option value="arabic">لغة عربية</option><option value="science">علوم</option></select></div>
+      <div class="input-line"><textarea id="qText" rows="3" placeholder="نص السؤال"></textarea></div>
+      <div class="input-line"><input id="qChoice1" placeholder="الاختيار 1"></div>
+      <div class="input-line"><input id="qChoice2" placeholder="الاختيار 2"></div>
+      <div class="input-line"><input id="qChoice3" placeholder="الاختيار 3"></div>
+      <div class="input-line"><input id="qChoice4" placeholder="الاختيار 4"></div>
+      <div class="input-line"><select id="qCorrect"><option value="0">الاختيار الصحيح 1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option></select></div>
+      <div class="input-line"><textarea id="qExp" rows="2" placeholder="شرح السؤال (يُظهر أعلى الاختيارات)"></textarea></div>
+      <button class="btn" onclick="addQuestion()">حفظ السؤال</button>
+
+      <h3 style="margin-top:2rem">الأسئلة الحالية</h3>
+      <table id="questionsTable">
+        <thead><tr><th>السؤال</th><th>المادة</th><th>الإجراء</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- تبويب الطلاب -->
+    <div id="students" class="tabcontent">
+      <h2>قائمة الطلاب</h2>
+      <button class="btn" onclick="loadStudents()">تحديث</button>
+      <table id="studentsTable">
+        <thead><tr><th>الاسم الرباعي</th><th>كلمة المرور</th><th>إعادة تعيين</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCwmnuN3GmXh-Snj_SGXVYxvC4BoksHuts",
+      authDomain: "naafis-platform.firebaseapp.com",
+      projectId: "naafis-platform",
+      storageBucket: "naafis-platform.firebasestorage.app",
+      messagingSenderId: "337917395597",
+      appId: "1:337917395597:web:6c90a2847ac51ed0c658c4"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+  </script>
+
+  <script>
+    // التحقق من دخول المعلم
+    if(!sessionStorage.getItem('admin')) location.href='admin-login.html';
+
+    function openTab(evt,tab){
+      document.querySelectorAll('.tabcontent').forEach(t=>t.classList.remove('active'));
+      document.querySelectorAll('.tabBtn').forEach(b=>b.classList.remove('active'));
+      document.getElementById(tab).classList.add('active');
+      evt.currentTarget.classList.add('active');
+    }
+
+    async function loadResults(){
+      const snap = await db.collection('results').where('weekId','==','week1').orderBy('correctCount','desc').orderBy('timeSeconds','asc').get();
+      const tbody = document.querySelector('#resultsTable tbody');
+      tbody.innerHTML='';
+      snap.forEach((doc,idx)=>{
+        const d=doc.data();
+        tbody.insertAdjacentHTML('beforeend',`<tr><td>${d.studentName}</td><td>${d.correctCount}</td><td>${d.timeSeconds}</td><td>${idx+1}</td></tr>`);
+      });
+    }
+    async function loadStudents(){
+      const snap = await db.collection('students').get();
+      const tbody = document.querySelector('#studentsTable tbody');
+      tbody.innerHTML='';
+      snap.forEach(doc=>{
+        const d=doc.data();
+        tbody.insertAdjacentHTML('beforeend',`<tr>
+          <td>${d.fullName}</td><td>${d.password}</td>
+          <td><button class="btn" onclick="resetPass('${doc.id}')">إعادة تعيين</button></td>
+        </tr>`);
+      });
+    }
+    async function resetPass(id){
+      const newPass = prompt('أدخل الرقم السري الجديد:');
+      if(!newPass) return;
+      await db.collection('students').doc(id).update({password:newPass});
+      alert('تم التحديث'); loadStudents();
+    }
+    async function loadQuestions(){
+      const snap = await db.collection('questions').where('weekId','==','week1').get();
+      const tbody = document.querySelector('#questionsTable tbody');
+      tbody.innerHTML='';
+      snap.forEach(doc=>{
+        const d=doc.data();
+        tbody.insertAdjacentHTML('beforeend',`<tr>
+          <td>${d.questionText}</td><td>${d.subject}</td>
+          <td><button class="btn" onclick="deleteQuestion('${doc.id}')">حذف</button></td>
+        </tr>`);
+      });
+    }
+    async function addQuestion(){
+      const data={
+        weekId: 'week1',
+        subject: document.getElementById('qSubject').value,
+        questionText: document.getElementById('qText').value.trim(),
+        choices: [
+          document.getElementById('qChoice1').value.trim(),
+          document.getElementById('qChoice2').value.trim(),
+          document.getElementById('qChoice3').value.trim(),
+          document.getElementById('qChoice4').value.trim()
+        ],
+        correctIndex: parseInt(document.getElementById('qCorrect').value),
+        explanation: document.getElementById('qExp').value.trim()
+      };
+      if(!data.questionText || data.choices.some(c=>!c)){alert('يرجى تعبئة جميع الحقول');return;}
+      await db.collection('questions').add(data);
+      alert('تم حفظ السؤال');
+      ['qText','qChoice1','qChoice2','qChoice3','qChoice4','qExp'].forEach(id=>document.getElementById(id).value='');
+      loadQuestions();
+    }
+    async function deleteQuestion(id){
+      if(confirm('هل تريد حذف السؤال؟')){await db.collection('questions').doc(id).delete(); loadQuestions();}
+    }
+    // تحميل البيانات عند الدخول
+    loadResults(); loadQuestions(); loadStudents();
+  </script>
+</body>
+</html>
