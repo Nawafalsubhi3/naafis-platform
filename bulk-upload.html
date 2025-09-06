@@ -1,0 +1,92 @@
+<!-- bulk-upload.html -->
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <title>رفع أسئلة بالجملة – نافس</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--primary:#003865;--secondary:#1e8a4c;--light:#f5f7fa}
+    body{font-family:'Cairo',sans-serif;background:var(--light);margin:0;color:#222;display:flex;flex-direction:column;min-height:100vh}
+    header{background:var(--primary);color:#fff;padding:1rem 0}
+    .container{width:90%;max-width:900px;margin:auto}
+    textarea{width:100%;min-height:300px;padding:1rem;border:1px solid #ccc;border-radius:8px;font-size:1rem}
+    .btn{background:var(--secondary);color:#fff;border:none;padding:.75rem 2rem;border-radius:8px;cursor:pointer;font-size:1.1rem}
+    .btn:hover{background:#166a3a}
+    .msg{margin-top:1rem;font-size:1rem}
+    .success{color:var(--secondary)}
+    .error{color:#c62828}
+    footer{background:var(--primary);color:#fff;text-align:center;padding:1rem 0;margin-top:auto}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>رفع أسئلة بالجملة</h1>
+      <p>وزارة التعليم – مسابقة نافس</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <h2>لصق النص (٤٠ سؤالاً)</h2>
+    <textarea id="bulkText" placeholder="الصيغة: س1|المادة|نص السؤال|اختيار1,اختيار2,اختيار3,اختيار4|الصح|شرح
+مثال:
+س1|رياضيات|كم يُساوي ٥ + ٣؟|٧,٨,٩,١٠|1|لأن ٥+٣=٨"></textarea>
+    <button class="btn" onclick="uploadBulk()">استخراج ورفع</button>
+    <div id="msg" class="msg"></div>
+  </main>
+
+  <footer>
+    إشراف وتنفيذ: الأستاذ نواف الصبحي
+  </footer>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCwmnuN3GmXh-Snj_SGXVYxvC4BoksHuts",
+      authDomain: "naafis-platform.firebaseapp.com",
+      projectId: "naafis-platform",
+      storageBucket: "naafis-platform.firebasestorage.app",
+      messagingSenderId: "337917395597",
+      appId: "1:337917395597:web:6c90a2847ac51ed0c658c4"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+  </script>
+
+  <script>
+    // التحقق من دخول المعلم
+    if(!sessionStorage.getItem('admin')) location.href='admin-login.html';
+
+    async function uploadBulk(){
+      const raw = document.getElementById('bulkText').value.trim();
+      const msg = document.getElementById('msg');
+      if(!raw){msg.textContent='الحقل فارغ';msg.className='msg error';return;}
+      const lines = raw.split('\n').filter(l=>l.trim());
+      let count=0;
+      for(const line of lines){
+        const p = line.split('|');
+        if(p.length!==6){msg.textContent=`خطأ في السطر: ${line}`;msg.className='msg error';return;}
+        const [sNum,subject,text,choicesStr,correct,expl] = p.map(x=>x.trim());
+        const choices = choicesStr.split(',').map(c=>c.trim());
+        if(choices.length!==4){msg.textContent=`يجب أن يكون 4 اختيارات في السطر: ${line}`;msg.className='msg error';return;}
+        await db.collection('questions').add({
+          weekId: 'week1',
+          subject,
+          questionText: text,
+          choices,
+          correctIndex: parseInt(correct),
+          explanation: expl
+        });
+        count++;
+      }
+      msg.textContent=`تم رفع ${count} سؤال بنجاح!`;
+      msg.className='msg success';
+      document.getElementById('bulkText').value='';
+    }
+  </script>
+</body>
+</html>
