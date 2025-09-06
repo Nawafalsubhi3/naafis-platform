@@ -22,6 +22,10 @@
     .btn:hover{background:#166a3a}
     .input-line{margin:.5rem 0}
     .input-line input, .input-line select, .input-line textarea{width:100%;padding:.5rem;margin-top:.25rem;border:1px solid #ccc;border-radius:6px}
+    .warning{background:#fff3cd;border:1px solid #ffeaa7;color:#856404;padding:1rem;border-radius:8px;margin:1rem 0}
+    .success{background:#d4edda;border:1px solid #c3e6cb;color:#155724;padding:1rem;border-radius:8px;margin:1rem 0}
+    .exam-config{background:#e3f2fd;border:1px solid #bbdefb;padding:1rem;border-radius:8px;margin:1rem 0}
+    .exam-config h4{margin-top:0;color:var(--primary)}
   </style>
 </head>
 <body>
@@ -37,6 +41,7 @@
       <button class="tabBtn active" onclick="openTab(event,'results')">نتائج الطلاب</button>
       <button class="tabBtn" onclick="openTab(event,'questions')">إدارة الأسئلة</button>
       <button class="tabBtn" onclick="openTab(event,'students')">إدارة الطلاب</button>
+      <button class="tabBtn" onclick="openTab(event,'exam-config')">إعدادات المسابقة</button>
     </div>
 
     <!-- تبويب النتائج -->
@@ -59,7 +64,6 @@
       <div class="input-line"><input id="qChoice3" placeholder="الاختيار 3"></div>
       <div class="input-line"><input id="qChoice4" placeholder="الاختيار 4"></div>
       <div class="input-line"><select id="qCorrect"><option value="0">الاختيار الصحيح 1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option></select></div>
-      <div class="input-line"><textarea id="qExp" rows="2" placeholder="شرح السؤال (يُظهر أعلى الاختيارات)"></textarea></div>
 
       <!-- حقول بنك الأسئلة الذكي -->
       <div class="input-line">
@@ -77,16 +81,24 @@
         <label>الوسوم (افصل بفاصلة)</label>
         <input id="tags" placeholder="مثال: احتمالات, الصف الثالث">
       </div>
+      <div class="input-line">
+        <label>الوقت المخصص للسؤال (بالثواني)</label>
+        <input type="number" id="qTimeLimit" value="60" min="30" max="300">
+      </div>
 
       <button class="btn" onclick="addQuestion()">حفظ السؤال</button>
 
       <!-- أزرار إضافية -->
       <h3 style="margin-top:2rem">الأسئلة الحالية</h3>
-      <a class="btn" href="bulk-upload.html" style="margin:.5rem 0;display:inline-block">رفع أسئلة بالجملة</a>
-      <button class="btn" onclick="generateSmartExam()" style="background:var(--accent);color:#000;margin:.5rem 0;">توليد اختبار ذكي (٤٠ سؤال)</button>
+      <div class="warning">
+        <strong>تنبيه:</strong> تم إزالة حقل "شرح السؤال" لتجنب الكشف المبكر عن الإجابة. سيتم عرض الأسئلة بدون توضيحات إضافية.
+      </div>
+      
+      <button class="btn" onclick="generateSmartExam()" style="background:var(--accent);color:#000;margin:.5rem 0;">توليد اختبار ذكي (40 سؤال)</button>
+      <button class="btn" onclick="clearAllSelections()" style="background:var(--danger);margin:.5rem 0;">إلغاء جميع الاختيارات</button>
 
       <table id="questionsTable">
-        <thead><tr><th>السؤال</th><th>المادة | بلوم | الوسوم | المعاملات</th><th>مختار</th><th>إجراء</th></tr></thead>
+        <thead><tr><th>السؤال</th><th>المادة | بلوم | الوسوم | المعاملات | الوقت</th><th>مختار</th><th>إجراء</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -99,6 +111,46 @@
         <thead><tr><th>الاسم الرباعي</th><th>كلمة المرور</th><th>إعادة تعيين</th></tr></thead>
         <tbody></tbody>
       </table>
+    </div>
+
+    <!-- تبويب إعدادات المسابقة -->
+    <div id="exam-config" class="tabcontent">
+      <h2>إعدادات المسابقة</h2>
+      
+      <div class="exam-config">
+        <h4>إعدادات الوقت</h4>
+        <div class="input-line">
+          <label>الوقت الإجمالي للمسابقة (بالدقائق)</label>
+          <input type="number" id="totalExamTime" value="45" min="20" max="120">
+        </div>
+        <div class="input-line">
+          <label>نوع التوقيت</label>
+          <select id="timingMode">
+            <option value="total">وقت إجمالي للمسابقة كاملة</option>
+            <option value="per-question">وقت منفصل لكل سؤال</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="exam-config">
+        <h4>إعدادات الأسئلة</h4>
+        <div class="input-line">
+          <label>عدد الأسئلة في المسابقة</label>
+          <input type="number" id="questionCount" value="40" min="10" max="40">
+        </div>
+        <div class="input-line">
+          <label>ترتيب الأسئلة</label>
+          <select id="questionOrder">
+            <option value="random">عشوائي</option>
+            <option value="difficulty">حسب الصعوبة</option>
+            <option value="subject">حسب المادة</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="btn" onclick="saveExamConfig()">حفظ الإعدادات</button>
+      
+      <div id="configStatus"></div>
     </div>
   </main>
 
@@ -138,6 +190,7 @@
         tbody.insertAdjacentHTML('beforeend',`<tr><td>${d.studentName}</td><td>${d.correctCount}</td><td>${d.timeSeconds}</td><td>${idx+1}</td></tr>`);
       });
     }
+
     async function loadStudents(){
       const snap = await db.collection('students').get();
       const tbody = document.querySelector('#studentsTable tbody');
@@ -150,12 +203,15 @@
         </tr>`);
       });
     }
+
     async function resetPass(id){
       const newPass = prompt('أدخل الرقم السري الجديد:');
       if(!newPass) return;
       await db.collection('students').doc(id).update({password:newPass});
-      alert('تم التحديث'); loadStudents();
+      alert('تم التحديث'); 
+      loadStudents();
     }
+
     async function loadQuestions(){
       const snap = await db.collection('questions').where('weekId','==','week1').get();
       const tbody = document.querySelector('#questionsTable tbody');
@@ -163,13 +219,15 @@
       snap.forEach(doc=>{
         const d=doc.data();
         tbody.insertAdjacentHTML('beforeend',`<tr>
-          <td>${d.questionText}</td>
-          <td>${d.subject} | ${d.bloomLevel} | ${d.tags.join('،')}<br><small>صعوبة: ${(d.difficulty*100).toFixed(0)}% - تمييز: ${d.discrimination.toFixed(2)}</small></td>
+          <td>${d.questionText.substring(0,50)}...</td>
+          <td>${d.subject} | ${d.bloomLevel} | ${d.tags.join('، ')}<br>
+              <small>صعوبة: ${(d.difficulty*100).toFixed(0)}% - تمييز: ${d.discrimination.toFixed(2)} - وقت: ${d.timeLimit || 60}ث</small></td>
           <td>${d.selected ? '✅' : ''}</td>
           <td><button class="btn" onclick="deleteQuestion('${doc.id}')">حذف</button></td>
         </tr>`);
       });
     }
+
     async function addQuestion(){
       const data={
         weekId: 'week1',
@@ -182,67 +240,113 @@
           document.getElementById('qChoice4').value.trim()
         ],
         correctIndex: parseInt(document.getElementById('qCorrect').value),
-        explanation: document.getElementById('qExp').value.trim(),
         bloomLevel: document.getElementById('bloomLevel').value,
         type: 'MCQ',
         tags: document.getElementById('tags').value.split(',').map(t=>t.trim()).filter(t=>t),
-        difficulty: 0,   // سيتم حسابه لاحقاً
-        discrimination: 0
+        timeLimit: parseInt(document.getElementById('qTimeLimit').value) || 60,
+        difficulty: 0.5,   // سيتم حسابه لاحقاً
+        discrimination: 0,
+        selected: false
       };
-      if(!data.questionText || data.choices.some(c=>!c)){alert('يرجى تعبئة جميع الحقول');return;}
+      
+      if(!data.questionText || data.choices.some(c=>!c)){
+        alert('يرجى تعبئة جميع الحقول');
+        return;
+      }
+      
       await db.collection('questions').add(data);
       alert('تم حفظ السؤال');
-      ['qText','qChoice1','qChoice2','qChoice3','qChoice4','qExp','tags'].forEach(id=>document.getElementById(id).value='');
+      ['qText','qChoice1','qChoice2','qChoice3','qChoice4','tags'].forEach(id=>document.getElementById(id).value='');
       loadQuestions();
     }
+
     async function deleteQuestion(id){
-      if(confirm('هل تريد حذف السؤال؟')){await db.collection('questions').doc(id).delete(); loadQuestions();}
+      if(confirm('هل تريد حذف السؤال؟')){
+        await db.collection('questions').doc(id).delete(); 
+        loadQuestions();
+      }
     }
 
-    // ⭐ دالة التوليد الذكي (مع الكود المطلوب)
+    async function clearAllSelections(){
+      if(confirm('هل تريد إلغاء جميع الاختيارات الحالية؟')){
+        const snap = await db.collection('questions').where('weekId','==','week1').where('selected','==',true).get();
+        const batch = db.batch();
+        snap.forEach(doc => batch.update(doc.ref, {selected: false}));
+        await batch.commit();
+        alert('تم إلغاء جميع الاختيارات');
+        loadQuestions();
+      }
+    }
+
+    // ⭐ دالة التوليد الذكي المحدثة (40 سؤال بالضبط)
     async function generateSmartExam(){
-      const sure = confirm('سيتم إنشاء ٤٠ سؤالًا متوازنًا تلقائيًا وإسنادهم إلى الأسبوع الحالي (week1). متابعة؟');
+      const config = await getExamConfig();
+      const questionCount = config.questionCount || 40;
+      
+      const sure = confirm(`سيتم إنشاء ${questionCount} سؤالاً متوازناً تلقائياً وإسنادهم إلى الأسبوع الحالي (week1). متابعة؟`);
       if(!sure) return;
 
       const allSnap = await db.collection('questions').where('weekId','==','week1').get();
       const allQuestions = allSnap.docs.map(d=>({id:d.id,...d.data()}));
 
-      if(allQuestions.length < 40){
-        alert('عدد الأسئلة أقل من ٤٠، أضف المزيد أولاً');
+      if(allQuestions.length < questionCount){
+        alert(`عدد الأسئلة أقل من ${questionCount}، أضف المزيد أولاً`);
         return;
       }
 
-      // التوزيع المطلوب
-      const subjectDist = {math:15, arabic:15, science:10};
-      const bloomDist   = {remember:8, understand:10, apply:10, analyze:7, evaluate:3, create:2};
+      // إلغاء جميع الاختيارات السابقة
+      const batch = db.batch();
+      allQuestions.forEach(q => {
+        if(q.selected) batch.update(db.collection('questions').doc(q.id), {selected: false});
+      });
+
+      // التوزيع المطلوب (قابل للتعديل حسب عدد الأسئلة)
+      const ratio = questionCount / 40; // نسبة التوزيع
+      const subjectDist = {
+        math: Math.round(15 * ratio), 
+        arabic: Math.round(15 * ratio), 
+        science: Math.round(10 * ratio)
+      };
+      const bloomDist = {
+        remember: Math.round(8 * ratio), 
+        understand: Math.round(10 * ratio), 
+        apply: Math.round(10 * ratio), 
+        analyze: Math.round(7 * ratio), 
+        evaluate: Math.round(3 * ratio), 
+        create: Math.round(2 * ratio)
+      };
 
       // تصفية (تفضيل أسئلة متوسطة الصعوبة وتمييز جيد)
       const filtered = allQuestions.filter(q =>
-        q.difficulty >= 0.3 && q.difficulty <= 0.7 && q.discrimination >= 0.3
+        q.difficulty >= 0.3 && q.difficulty <= 0.7 && q.discrimination >= 0.2
       );
 
-      if(filtered.length < 40){
-        alert('لا توجد أسئلة كافية ضمن معايير الصعوبة والتمييز');
-        return;
+      if(filtered.length < questionCount){
+        // إذا لم تكن هناك أسئلة كافية بالمعايير المثلى، نأخذ من كل الأسئلة
+        const selected = pickExactly(allQuestions, questionCount);
+        selected.forEach(q => batch.update(db.collection('questions').doc(q.id), {selected: true}));
+      } else {
+        const selected = pickByDistribution(filtered, subjectDist, bloomDist, questionCount);
+        selected.forEach(q => batch.update(db.collection('questions').doc(q.id), {selected: true}));
       }
 
-      const selected = pickByDistribution(filtered, subjectDist, bloomDist, 40);
-
-      // وضع علامة selected=true على الأسئلة المختارة
-      for(const q of selected){
-        await db.collection('questions').doc(q.id).update({selected:true});
-      }
-
-      alert(`✅ تم اختيار ٤٠ سؤالًا متوازنًا بنجاح!\nالمواد: ${JSON.stringify(subjectDist)}\nبلوم: ${JSON.stringify(bloomDist)}`);
+      await batch.commit();
+      alert(`✅ تم اختيار ${questionCount} سؤالاً متوازناً بنجاح!`);
       loadQuestions();
     }
 
-    // ⭐ الكود الجديد المطلوب (بدون تكرار وبدقة ٤٠)
+    // دالة اختيار عدد محدد بالضبط
+    function pickExactly(pool, count){
+      const shuffled = [...pool].sort(() => Math.random() - 0.5);
+      return shuffled.slice(0, count);
+    }
+
+    // الكود الجديد المطلوب (بدون تكرار وبدقة العدد المطلوب)
     function pickByDistribution(pool, subjDist, bloomDist, total){
-      const picked   = new Set();                // منع التكرار
+      const picked = new Set();
       const poolCopy = [...pool];
 
-      // نمرّ على كل تصنيف بالترتيب حتى نحقق العدد المطلوب
+      // نمر على كل تصنيف بالترتيب حتى نحقق العدد المطلوب
       for(const [subj,subjCount] of Object.entries(subjDist)){
         const subjPool = poolCopy.filter(q=>q.subject===subj && !picked.has(q.id));
         for(const [bloom,bloomCount] of Object.entries(bloomDist)){
@@ -254,7 +358,7 @@
         }
       }
 
-      // إذا لم نكمل ٤٠ نُكمّل بقية عشوائي من غير المكرر
+      // إذا لم نكمل العدد المطلوب نكمّل بقية عشوائي من غير المكرر
       const left = poolCopy.filter(q=>!picked.has(q.id));
       const extra = left.sort(()=>Math.random()-0.5).slice(0, total - picked.size);
       extra.forEach(q=>picked.add(q.id));
@@ -263,8 +367,43 @@
       return poolCopy.filter(q=>picked.has(q.id)).sort(()=>Math.random()-0.5);
     }
 
+    async function saveExamConfig(){
+      const config = {
+        totalExamTime: parseInt(document.getElementById('totalExamTime').value) || 45,
+        timingMode: document.getElementById('timingMode').value,
+        questionCount: parseInt(document.getElementById('questionCount').value) || 40,
+        questionOrder: document.getElementById('questionOrder').value,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+
+      await db.collection('exam_config').doc('current').set(config);
+      document.getElementById('configStatus').innerHTML = '<div class="success">تم حفظ الإعدادات بنجاح!</div>';
+      setTimeout(() => document.getElementById('configStatus').innerHTML = '', 3000);
+    }
+
+    async function getExamConfig(){
+      const doc = await db.collection('exam_config').doc('current').get();
+      return doc.exists ? doc.data() : {
+        totalExamTime: 45,
+        timingMode: 'total',
+        questionCount: 40,
+        questionOrder: 'random'
+      };
+    }
+
+    async function loadExamConfig(){
+      const config = await getExamConfig();
+      document.getElementById('totalExamTime').value = config.totalExamTime;
+      document.getElementById('timingMode').value = config.timingMode;
+      document.getElementById('questionCount').value = config.questionCount;
+      document.getElementById('questionOrder').value = config.questionOrder;
+    }
+
     // تحميل البيانات عند الدخول
-    loadResults(); loadQuestions(); loadStudents();
+    loadResults(); 
+    loadQuestions(); 
+    loadStudents();
+    loadExamConfig();
   </script>
 </body>
 </html>
