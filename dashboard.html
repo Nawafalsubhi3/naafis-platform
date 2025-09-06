@@ -199,7 +199,7 @@
       if(confirm('هل تريد حذف السؤال؟')){await db.collection('questions').doc(id).delete(); loadQuestions();}
     }
 
-    // ⭐ دالة التوليد الذكي
+    // ⭐ دالة التوليد الذكي (مع الكود المطلوب)
     async function generateSmartExam(){
       const sure = confirm('سيتم إنشاء ٤٠ سؤالًا متوازنًا تلقائيًا وإسنادهم إلى الأسبوع الحالي (week1). متابعة؟');
       if(!sure) return;
@@ -237,32 +237,30 @@
       loadQuestions();
     }
 
-    // دالة مساعدة: اختيار عشوائي مع التوزيع المطلوب
+    // ⭐ الكود الجديد المطلوب (بدون تكرار وبدقة ٤٠)
     function pickByDistribution(pool, subjDist, bloomDist, total){
-      const picked=[];
+      const picked   = new Set();                // منع التكرار
       const poolCopy = [...pool];
 
+      // نمرّ على كل تصنيف بالترتيب حتى نحقق العدد المطلوب
       for(const [subj,subjCount] of Object.entries(subjDist)){
-        const subjPool = poolCopy.filter(q=>q.subject===subj);
+        const subjPool = poolCopy.filter(q=>q.subject===subj && !picked.has(q.id));
         for(const [bloom,bloomCount] of Object.entries(bloomDist)){
-          const bloomSubjPool = subjPool.filter(q=>q.bloomLevel===bloom);
-          const needed = Math.min(bloomCount, bloomSubjPool.length);
+          const bloomSubjPool = subjPool.filter(q=>q.bloomLevel===bloom && !picked.has(q.id));
           const shuffled = bloomSubjPool.sort(()=>Math.random()-0.5);
-          for(let i=0;i<needed;i++){
-            picked.push(shuffled[i]);
+          for(let i=0; i<Math.min(bloomCount, shuffled.length) && picked.size<total; i++){
+            picked.add(shuffled[i].id);
           }
         }
       }
 
-      // إكمال المتبقي عشوائياً
-      const remaining = total - picked.length;
-      if(remaining>0){
-        const left = poolCopy.filter(q=>!picked.includes(q));
-        const extra = left.sort(()=>Math.random()-0.5).slice(0,remaining);
-        picked.push(...extra);
-      }
+      // إذا لم نكمل ٤٠ نُكمّل بقية عشوائي من غير المكرر
+      const left = poolCopy.filter(q=>!picked.has(q.id));
+      const extra = left.sort(()=>Math.random()-0.5).slice(0, total - picked.size);
+      extra.forEach(q=>picked.add(q.id));
 
-      return picked.sort(()=>Math.random()-0.5);
+      // نعيد الكائنات الكاملة مرتبة عشوائياً
+      return poolCopy.filter(q=>picked.has(q.id)).sort(()=>Math.random()-0.5);
     }
 
     // تحميل البيانات عند الدخول
