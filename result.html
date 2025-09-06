@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <title>نتيجتك – مسابقة نافس</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --primary:#003865;
+      --secondary:#1e8a4c;
+      --accent:#ffce00;
+      --light:#f5f7fa
+    }
+    body{font-family:'Cairo',sans-serif;background:var(--light);margin:0;color:#222;display:flex;flex-direction:column;min-height:100vh}
+    header{background:var(--primary);color:#fff;padding:1rem 0}
+    .container{width:90%;max-width:1000px;margin:auto;text-align:center}
+    .card{background:#fff;border-radius:12px;box-shadow:0 4px 25px rgba(0,0,0,.12);padding:2rem;margin:2rem 0}
+    .card h2{color:var(--primary);margin-bottom:1rem}
+    .score{font-size:2.2rem;color:var(--secondary);margin:.5rem 0}
+    .top3{list-style:none;padding:0;margin:0;display:flex;justify-content:center;gap:1.5rem;flex-wrap:wrap}
+    .top3 li{background:var(--accent);color:#000;padding:1rem 1.5rem;border-radius:10px;font-weight:700;min-width:200px}
+    footer{background:var(--primary);color:#fff;text-align:center;padding:1rem 0;font-size:.8rem;margin-top:auto}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>منصة مسابقة نافس</h1>
+      <p>وزارة التعليم – مكتب تعليم العوالي</p>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+      <div class="card">
+        <h2>نتيجتك في الأسبوع الأول</h2>
+        <div class="score" id="yourScore"></div>
+        <p>عدد الإجابات الصحيحة من أصل 40 سؤالاً</p>
+      </div>
+
+      <div class="card">
+        <h2>لوحة الشرف – أفضل 3 طلاب هذا الأسبوع</h2>
+        <ol class="top3" id="top3"></ol>
+      </div>
+
+      <button class="btn" style="background:var(--primary);color:#fff;border:none;padding:.75rem 2rem;border-radius:8px;cursor:pointer" onclick="location.href='index.html'">العودة للرئيسية</button>
+    </div>
+  </main>
+
+  <footer>
+    إشراف وتنفيذ: الأستاذ نواف الصبحي
+  </footer>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCwmnuN3GmXh-Snj_SGXVYxvC4BoksHuts",
+      authDomain: "naafis-platform.firebaseapp.com",
+      projectId: "naafis-platform",
+      storageBucket: "naafis-platform.firebasestorage.app",
+      messagingSenderId: "337917395597",
+      appId: "1:337917395597:web:6c90a2847ac51ed0c658c4"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+  </script>
+
+  <script>
+    const res = JSON.parse(sessionStorage.getItem('result'));
+    document.getElementById('yourScore').textContent = `${res.correctCount} / 40 | الوقت: ${res.timeSeconds} ثانية`;
+
+    db.collection('results')
+      .where('weekId','==','week1')
+      .orderBy('correctCount','desc')
+      .orderBy('timeSeconds','asc')
+      .limit(3)
+      .onSnapshot(snap=>{
+        const list = document.getElementById('top3');
+        list.innerHTML = '';
+        snap.forEach(doc=>{
+          const d = doc.data();
+          const li = document.createElement('li');
+          li.textContent = `${d.studentName} | ${d.correctCount}/40 | ${d.timeSeconds} ث`;
+          list.appendChild(li);
+        });
+      });
+  </script>
+</body>
+</html>
