@@ -84,7 +84,7 @@
       <!-- زر رفع الأسئلة بالجملة -->
       <a class="btn" href="bulk-upload.html" style="margin:.5rem 0;display:inline-block">رفع أسئلة بالجملة</a>
       <table id="questionsTable">
-        <thead><tr><th>السؤال</th><th>المادة | بلوم | الوسوم</th><th>إجراء</th></tr></thead>
+        <thead><tr><th>السؤال</th><th>المادة | بلوم | الوسوم | المعاملات</th><th>إجراء</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -162,7 +162,7 @@
         const d=doc.data();
         tbody.insertAdjacentHTML('beforeend',`<tr>
           <td>${d.questionText}</td>
-          <td>${d.subject} | ${d.bloomLevel} | ${d.tags.join('،')}</td>
+          <td>${d.subject} | ${d.bloomLevel} | ${d.tags.join('،')}<br><small>صعوبة: ${(d.difficulty*100).toFixed(0)}% - تمييز: ${d.discrimination.toFixed(2)}</small></td>
           <td><button class="btn" onclick="deleteQuestion('${doc.id}')">حذف</button></td>
         </tr>`);
       });
