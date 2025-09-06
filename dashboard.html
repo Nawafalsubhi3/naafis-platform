@@ -16,7 +16,7 @@
     .tabcontent{display:none;background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.1);padding:1.5rem}
     .tabcontent.active{display:block}
     table{width:100%;border-collapse:collapse;margin-top:1rem}
-    th,td{padding:.75rem;border:1px solid #ddd;text-align:center}
+    th,td{padding:.75rem;border:1px solid #ddd;text-align:center;font-size:.85rem}
     th{background:var(--primary);color:#fff}
     .btn{background:var(--secondary);color:#fff;border:none;padding:.5rem 1rem;border-radius:6px;cursor:pointer}
     .btn:hover{background:#166a3a}
@@ -60,13 +60,31 @@
       <div class="input-line"><input id="qChoice4" placeholder="الاختيار 4"></div>
       <div class="input-line"><select id="qCorrect"><option value="0">الاختيار الصحيح 1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option></select></div>
       <div class="input-line"><textarea id="qExp" rows="2" placeholder="شرح السؤال (يُظهر أعلى الاختيارات)"></textarea></div>
+
+      <!-- حقول بنك الأسئلة الذكي -->
+      <div class="input-line">
+        <label>مستوى بلوم</label>
+        <select id="bloomLevel">
+          <option value="remember">تذكر</option>
+          <option value="understand">فهم</option>
+          <option value="apply">تطبيق</option>
+          <option value="analyze">تحليل</option>
+          <option value="evaluate">تقييم</option>
+          <option value="create">إبداع</option>
+        </select>
+      </div>
+      <div class="input-line">
+        <label>الوسوم (افصل بفاصلة)</label>
+        <input id="tags" placeholder="مثال: احتمالات, الصف الثالث">
+      </div>
+
       <button class="btn" onclick="addQuestion()">حفظ السؤال</button>
 
       <h3 style="margin-top:2rem">الأسئلة الحالية</h3>
       <!-- زر رفع الأسئلة بالجملة -->
       <a class="btn" href="bulk-upload.html" style="margin:.5rem 0;display:inline-block">رفع أسئلة بالجملة</a>
       <table id="questionsTable">
-        <thead><tr><th>السؤال</th><th>المادة</th><th>الإجراء</th></tr></thead>
+        <thead><tr><th>السؤال</th><th>المادة | بلوم | الوسوم</th><th>إجراء</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -143,7 +161,8 @@
       snap.forEach(doc=>{
         const d=doc.data();
         tbody.insertAdjacentHTML('beforeend',`<tr>
-          <td>${d.questionText}</td><td>${d.subject}</td>
+          <td>${d.questionText}</td>
+          <td>${d.subject} | ${d.bloomLevel} | ${d.tags.join('،')}</td>
           <td><button class="btn" onclick="deleteQuestion('${doc.id}')">حذف</button></td>
         </tr>`);
       });
@@ -160,12 +179,17 @@
           document.getElementById('qChoice4').value.trim()
         ],
         correctIndex: parseInt(document.getElementById('qCorrect').value),
-        explanation: document.getElementById('qExp').value.trim()
+        explanation: document.getElementById('qExp').value.trim(),
+        bloomLevel: document.getElementById('bloomLevel').value,
+        type: 'MCQ',
+        tags: document.getElementById('tags').value.split(',').map(t=>t.trim()).filter(t=>t),
+        difficulty: 0,   // سيتم حسابه لاحقاً
+        discrimination: 0
       };
       if(!data.questionText || data.choices.some(c=>!c)){alert('يرجى تعبئة جميع الحقول');return;}
       await db.collection('questions').add(data);
       alert('تم حفظ السؤال');
-      ['qText','qChoice1','qChoice2','qChoice3','qChoice4','qExp'].forEach(id=>document.getElementById(id).value='');
+      ['qText','qChoice1','qChoice2','qChoice3','qChoice4','qExp','tags'].forEach(id=>document.getElementById(id).value='');
       loadQuestions();
     }
     async function deleteQuestion(id){
