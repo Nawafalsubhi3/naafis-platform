@@ -6,45 +6,38 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    :root{
-      --primary:#003865;
-      --secondary:#1e8a4c;
-      --accent:#ffce00;
-      --light:#f5f7fa
-    }
-    body{font-family:'Cairo',sans-serif;background:var(--light);margin:0;color:#222;display:flex;flex-direction:column;min-height:100vh}
+    :root{--primary:#003865;--secondary:#1e8a4c;--accent:#ffce00;--light:#f5f7fa}
+    body{font-family:'Cairo',sans-serif;background:var(--light);margin:0;color:#222;display:flex;flex-direction:column;min-height:100vh;text-align:center}
     header{background:var(--primary);color:#fff;padding:1rem 0}
-    .container{width:90%;max-width:1000px;margin:auto;text-align:center}
-    .card{background:#fff;border-radius:12px;box-shadow:0 4px 25px rgba(0,0,0,.12);padding:2rem;margin:2rem 0}
-    .card h2{color:var(--primary);margin-bottom:1rem}
-    .score{font-size:2.2rem;color:var(--secondary);margin:.5rem 0}
-    .top3{list-style:none;padding:0;margin:0;display:flex;justify-content:center;gap:1.5rem;flex-wrap:wrap}
-    .top3 li{background:var(--accent);color:#000;padding:1rem 1.5rem;border-radius:10px;font-weight:700;min-width:200px}
+    .container{width:90%;max-width:600px;margin:auto}
+    .card{background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.12);padding:2rem;margin:2rem 0}
+    .score{font-size:3rem;color:var(--secondary);margin:.5rem 0}
+    .top3{list-style:none;padding:0;margin:1rem 0}
+    .top3 li{background:var(--accent);color:#000;padding:.5rem 1rem;border-radius:8px;margin:.5rem 0;font-weight:700}
     footer{background:var(--primary);color:#fff;text-align:center;padding:1rem 0;font-size:.8rem;margin-top:auto}
+    .btn{background:var(--secondary);color:#fff;border:none;padding:.75rem 2rem;border-radius:8px;cursor:pointer;font-size:1.1rem}
+    .btn:hover{background:#166a3a}
   </style>
 </head>
 <body>
   <header>
     <div class="container">
-      <h1>منصة مسابقة نافس</h1>
+      <h1>نتيجتك في مسابقة نافس</h1>
       <p>وزارة التعليم – مكتب تعليم العوالي</p>
     </div>
   </header>
 
-  <main>
-    <div class="container">
-      <div class="card">
-        <h2>نتيجتك في الأسبوع الأول</h2>
-        <div class="score" id="yourScore"></div>
-        <p>عدد الإجابات الصحيحة من أصل 40 سؤالاً</p>
-      </div>
+  <main class="container">
+    <div class="card">
+      <h2>نتيجتك في الأسبوع الحالي</h2>
+      <div class="score" id="yourScore"></div>
+      <p>عدد الإجابات الصحيحة من أصل 40 سؤالاً</p>
+      <button class="btn" onclick="location.href='index.html'">العودة للرئيسية</button>
+    </div>
 
-      <div class="card">
-        <h2>لوحة الشرف – أفضل 3 طلاب هذا الأسبوع</h2>
-        <ol class="top3" id="top3"></ol>
-      </div>
-
-      <button class="btn" style="background:var(--primary);color:#fff;border:none;padding:.75rem 2rem;border-radius:8px;cursor:pointer" onclick="location.href='index.html'">العودة للرئيسية</button>
+    <div class="card">
+      <h2>لوحة الشرف – أفضل 3 طلاب هذا الأسبوع</h2>
+      <ol class="top3" id="top3"></ol>
     </div>
   </main>
 
@@ -69,21 +62,27 @@
   </script>
 
   <script>
+    // عرض النتيجة الشخصية
     const res = JSON.parse(sessionStorage.getItem('result'));
-    document.getElementById('yourScore').textContent = `${res.correctCount} / 40 | الوقت: ${res.timeSeconds} ثانية`;
+    if (res) {
+      document.getElementById('yourScore').textContent = `${res.correctCount} / 40`;
+    } else {
+      document.getElementById('yourScore').textContent = 'غير متاحة';
+    }
 
+    // عرض لوحة الشرف
     db.collection('results')
-      .where('weekId','==','week1')
-      .orderBy('correctCount','desc')
-      .orderBy('timeSeconds','asc')
+      .where('weekId', '==', 'week1')
+      .orderBy('correctCount', 'desc')
+      .orderBy('timeSeconds', 'asc')
       .limit(3)
-      .onSnapshot(snap=>{
+      .onSnapshot(snap => {
         const list = document.getElementById('top3');
         list.innerHTML = '';
-        snap.forEach(doc=>{
+        snap.forEach((doc, idx) => {
           const d = doc.data();
           const li = document.createElement('li');
-          li.textContent = `${d.studentName} | ${d.correctCount}/40 | ${d.timeSeconds} ث`;
+          li.textContent = `${idx + 1}. ${d.studentName} – ${d.correctCount}/40 – ${d.timeSeconds} ث`;
           list.appendChild(li);
         });
       });
