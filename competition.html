@@ -12,7 +12,6 @@
     .container{width:90%;max-width:900px;margin:auto}
     .top-bar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap}
     .timer{font-size:1.2rem;background:var(--danger);padding:.25rem .75rem;border-radius:6px}
-    .question-timer{font-size:1rem;background:var(--accent);color:#000;padding:.25rem .5rem;border-radius:6px;margin-right:1rem}
     .progress{width:100%;height:10px;background:#ffffff33;margin-top:.5rem;border-radius:5px;overflow:hidden}
     .progress span{display:block;height:100%;background:var(--accent);width:0%;transition:width .3s}
     main{flex:1;padding:2rem 0}
@@ -29,7 +28,6 @@
     .nav-buttons .next{background:var(--secondary);color:#fff}
     .nav-buttons .exit{background:var(--danger);color:#fff}
     footer{text-align:center;padding:1rem 0;font-size:.8rem;color:#555}
-    .auto-submit-warning{background:#fff3cd;border:1px solid #ffeaa7;color:#856404;padding:.5rem;border-radius:6px;margin:.5rem 0;font-size:.9rem}
   </style>
 </head>
 <body>
@@ -37,10 +35,7 @@
     <div class="container">
       <div class="top-bar">
         <div>مسابقة <b>نافس</b> – السؤال <span id="qNum">1</span> من <span id="totalQuestions">40</span></div>
-        <div>
-          <span class="question-timer" id="questionTimer" style="display:none">السؤال: <span id="qTime">--</span></span>
-          <span class="timer">الوقت المتبقي: <span id="count">45:00</span></span>
-        </div>
+        <div class="timer">الوقت المتبقي: <span id="count">45:00</span></div>
       </div>
       <div class="progress"><span id="bar"></span></div>
     </div>
@@ -64,93 +59,12 @@
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  
   <script>
-    // معالجة أخطاء sessionStorage
-    let student;
-    try {
-      student = JSON.parse(sessionStorage.getItem('student') || 'null');
-    } catch (error) {
-      console.warn('SessionStorage not available:', error);
-      // للاختبار فقط - قم بإزالة هذا في الإنتاج
-      student = { id: 'test-student', fullName: 'طالب تجريبي' };
-    }
-
-    if (!student) {
-      // location.href = 'login.html'; // قم بإلغاء التعليق في الإنتاج
-      console.warn('Student not logged in');
-    }
-
-    // إعداد Firebase مع معالجة الأخطاء
-    let db;
-    try {
-      const firebaseConfig = {
-        apiKey: "AIzaSyCwmnuN3GmXh-Snj_SGXVYxvC4BoksHuts",
-        authDomain: "naafis-platform.firebaseapp.com",
-        projectId: "naafis-platform",
-        storageBucket: "naafis-platform.firebasestorage.app",
-        messagingSenderId: "337917395597",
-        appId: "1:337917395597:web:6c90a2847ac51ed0c658c4"
-      };
-      
-      if (typeof firebase !== 'undefined') {
-        firebase.initializeApp(firebaseConfig);
-        db = firebase.firestore();
-        console.log('Firebase initialized successfully');
-      } else {
-        throw new Error('Firebase not loaded');
-      }
-    } catch (error) {
-      console.error('Firebase initialization error:', error);
-      // إنشاء كائن وهمي للاختبار
-      db = {
-        collection: (name) => ({
-          where: () => ({
-            get: () => Promise.resolve({ 
-              docs: [
-                {
-                  id: 'test1',
-                  data: () => ({
-                    questionText: 'ما هو العدد الأولي الأول؟',
-                    choices: ['1', '2', '3', '4'],
-                    correctIndex: 1,
-                    subject: 'math',
-                    timeLimit: 60,
-                    selected: true
-                  })
-                }
-              ],
-              forEach: (fn) => {
-                const doc = {
-                  id: 'test1',
-                  data: () => ({
-                    questionText: 'ما هو العدد الأولي الأول؟',
-                    choices: ['1', '2', '3', '4'],
-                    correctIndex: 1,
-                    subject: 'math',
-                    timeLimit: 60,
-                    selected: true
-                  })
-                };
-                fn(doc);
-              }
-            })
-          }),
-          add: () => Promise.resolve({ id: 'test' }),
-          doc: (id) => ({
-            get: () => Promise.resolve({
-              exists: true,
-              data: () => ({
-                totalExamTime: 45,
-                timingMode: 'total',
-                questionCount: 40,
-                questionOrder: 'random'
-              })
-            })
-          })
-        })
-      };
-    }storageBucket: "naafis-platform.firebasestorage.app",
+    const firebaseConfig = {
+      apiKey: "AIzaSyCwmnuN3GmXh-Snj_SGXVYxvC4BoksHuts",
+      authDomain: "naafis-platform.firebaseapp.com",
+      projectId: "naafis-platform",
+      storageBucket: "naafis-platform.firebasestorage.app",
       messagingSenderId: "337917395597",
       appId: "1:337917395597:web:6c90a2847ac51ed0c658c4"
     };
@@ -159,147 +73,69 @@
   </script>
 
   <script>
-
     let questions = [];
-    let current = 0;
-    let answers = {};
-    let timeLeft = 45 * 60; // وقت افتراضي، سيتم تحديثه من الإعدادات
-    let questionTimeLeft = 0;
-    let examConfig = {};
-    let mainTimer, questionTimer;
+    let current   = 0;
+    let answers   = {};
+    let timeLeft  = 45 * 60;
 
-    async function loadExamConfig() {
-      try {
-        const doc = await db.collection('exam_config').doc('current').get();
-        examConfig = doc.exists ? doc.data() : {
-          totalExamTime: 45,
-          timingMode: 'total',
-          questionCount: 40,
-          questionOrder: 'random'
-        };
-        
-        // تحديث الوقت الإجمالي
-        timeLeft = examConfig.totalExamTime * 60;
-        
-        // عرض العدد الصحيح للأسئلة
-        document.getElementById('totalQuestions').textContent = examConfig.questionCount;
-      } catch (error) {
-        console.error('Error loading exam config:', error);
-        examConfig = {
-          totalExamTime: 45,
-          timingMode: 'total',
-          questionCount: 40,
-          questionOrder: 'random'
-        };
-        timeLeft = 45 * 60;
-        document.getElementById('totalQuestions').textContent = 40;
-      }
-    }
+    const student = JSON.parse(sessionStorage.getItem('student'));
+    if (!student) location.href = 'login.html';
 
-    function startMainTimer() {
-      mainTimer = setInterval(async () => {
-        timeLeft--;
-        const m = String(Math.floor(timeLeft / 60)).padStart(2, '0');
-        const s = String(timeLeft % 60).padStart(2, '0');
-        document.getElementById('count').textContent = `${m}:${s}`;
-        
-        if (timeLeft <= 0) {
-          clearInterval(mainTimer);
-          clearInterval(questionTimer);
-          await submitAll();
-        }
-      }, 1000);
-    }
+    // استعادة رقم السؤال إن وُجد
+    const savedQ = sessionStorage.getItem('currentQ');
+    if (savedQ) current = parseInt(savedQ);
 
-    function startQuestionTimer() {
-      if (examConfig.timingMode !== 'per-question') return;
-      
-      const currentQuestion = questions[current];
-      questionTimeLeft = currentQuestion.timeLimit || 60;
-      
-      document.getElementById('questionTimer').style.display = 'inline-block';
-      
-      questionTimer = setInterval(async () => {
-        questionTimeLeft--;
-        document.getElementById('qTime').textContent = `${questionTimeLeft}ث`;
-        
-        if (questionTimeLeft <= 0) {
-          clearInterval(questionTimer);
-          // حفظ الإجابة الحالية (إن وجدت) والانتقال للسؤال التالي
-          await saveCurrentAnswer();
-          if (current < questions.length - 1) {
-            current++;
-            renderQuestion();
-          } else {
-            await submitAll();
-          }
-        }
-      }, 1000);
-    }
-
-    async function loadQuestions() {
-      try {
-        await loadExamConfig();
-        
-        // تحميل الأسئلة المختارة فقط
-        const snap = await db.collection('questions')
-          .where('weekId', '==', 'week1')
-          .where('selected', '==', true)
-          .get();
-        
-        questions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        
-        // تحديد العدد المطلوب بالضبط
-        questions = questions.slice(0, examConfig.questionCount);
-        
-        // ترتيب الأسئلة حسب الإعدادات
-        if (examConfig.questionOrder === 'random') {
-          questions.sort(() => Math.random() - 0.5);
-        } else if (examConfig.questionOrder === 'difficulty') {
-          questions.sort((a, b) => a.difficulty - b.difficulty);
-        } else if (examConfig.questionOrder === 'subject') {
-          questions.sort((a, b) => a.subject.localeCompare(b.subject));
-        }
-        
-        // تحميل الإجابات المحفوظة مؤقتاً
-        try {
-          const savedSnap = await db.collection('answers_temp').where('studentId', '==', student.id).get();
-          savedSnap.forEach(doc => {
-            const d = doc.data();
-            answers[d.qId] = d.ans;
-          });
-        } catch (error) {
-          console.warn('Could not load saved answers:', error);
-        }
-        
-        startMainTimer();
-        renderQuestion();
-      } catch (error) {
-        console.error('Error loading questions:', error);
-        alert('خطأ في تحميل الأسئلة');
-      }
-    }
-
-    function renderQuestion() {
-      if (current >= questions.length) {
+    // مؤقت رئيسي
+    const timer = setInterval(() => {
+      timeLeft--;
+      const m = String(Math.floor(timeLeft / 60)).padStart(2, '0');
+      const s = String(timeLeft % 60).padStart(2, '0');
+      document.getElementById('count').textContent = `${m}:${s}`;
+      if (timeLeft <= 0) {
+        clearInterval(timer);
         submitAll();
-        return;
       }
+    }, 1000);
 
+    // تحميل الأسئلة المختارة (بالضبط ٤٠)
+    async function loadQuestions() {
+      const snap = await db.collection('questions')
+                           .where('weekId', '==', 'week1')
+                           .where('selected', '==', true)
+                           .get();
+      questions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      questions = questions.slice(0, 40);           // ← بالضبط ٤٠
+      questions.sort(() => Math.random() - 0.5);   // خلط عشوائي
+
+      // استرجاع إجابات محفوظة
+      const savedSnap = await db.collection('answers_temp')
+                                .where('studentId', '==', student.id)
+                                .get();
+      savedSnap.forEach(doc => {
+        const d = doc.data();
+        answers[d.qId] = d.ans;
+      });
+
+      renderQuestion();
+    }
+
+    // عرض السؤال (بدون شرح وبدون اختيار تلقائي)
+    function renderQuestion() {
       const q = questions[current];
-      document.getElementById('qNum').textContent = current + 1;
-      document.getElementById('bar').style.width = `${((current + 1) / questions.length) * 100}%`;
-      document.getElementById('prevBtn').disabled = current === 0;
-      document.getElementById('nextBtn').textContent = current === questions.length - 1 ? 'إرسال الإجابات' : 'التالي';
+      document.getElementById('qNum').textContent  = current + 1;
+      document.getElementById('bar').style.width   = `${((current + 1) / 40) * 100}%`;
+      document.getElementById('prevBtn').disabled  = current === 0;
+      document.getElementById('nextBtn').textContent = current === 39 ? 'إرسال الإجابات' : 'التالي';
 
-      // إزالة حقل الشرح تماماً
+      // ✅ إفراغ أي اختيار سابق (منع التحديد التلقائي)
+      document.querySelectorAll('input[name="q"]').forEach(inp => inp.checked = false);
+
       document.getElementById('questionArea').innerHTML = `
         <div class="question-header">
-          <h3>السؤال ${current + 1} من ${questions.length}</h3>
+          <h3>السؤال ${current + 1} من ٤٠</h3>
           <span>${q.subject === 'math' ? 'رياضيات' : q.subject === 'arabic' ? 'لغة عربية' : 'علوم'}</span>
         </div>
         <p>${q.questionText}</p>
-        ${examConfig.timingMode === 'per-question' ? '<div class="auto-submit-warning">⏰ سيتم الانتقال تلقائياً عند انتهاء وقت السؤال</div>' : ''}
         <div class="choices">
           ${q.choices.map((ch, idx) => `
             <input type="radio" name="q" id="c${idx}" value="${idx}" ${answers[q.id] === idx ? 'checked' : ''}>
@@ -307,180 +143,103 @@
           `).join('')}
         </div>
       `;
-
-      // بدء مؤقت السؤال إذا كان مفعلاً
-      if (examConfig.timingMode === 'per-question') {
-        clearInterval(questionTimer);
-        startQuestionTimer();
-      } else {
-        document.getElementById('questionTimer').style.display = 'none';
-      }
-    }
-
-    async function saveCurrentAnswer() {
-      try {
-        const sel = document.querySelector('input[name="q"]:checked');
-        if (sel) {
-          answers[questions[current].id] = parseInt(sel.value);
-          await saveTempAnswer();
-        }
-      } catch (error) {
-        console.error('Error saving current answer:', error);
-      }
     }
 
     async function changeQuestion(step) {
-      await saveCurrentAnswer();
+      const sel = document.querySelector('input[name="q"]:checked');
+      if (sel) answers[questions[current].id] = parseInt(sel.value);
+      await saveTempAnswer();
+      sessionStorage.setItem('currentQ', current);
 
-      if (step === 1 && current === questions.length - 1) {
+      if (step === 1 && current === 39) {
         const sure = confirm('هل أنت متأكد من إرسال الإجابات؟');
-        if (sure) { 
-          clearInterval(mainTimer); 
-          clearInterval(questionTimer);
-          await submitAll(); 
-        }
+        if (sure) { clearInterval(timer); await submitAll(); }
         return;
       }
-      
       current += step;
       renderQuestion();
     }
 
     async function saveTempAnswer() {
-      try {
-        const qId = questions[current].id;
-        if (answers[qId] !== undefined && student) {
-          // حذف الإجابة المؤقتة القديمة
-          const old = await db.collection('answers_temp').where('studentId', '==', student.id).where('qId', '==', qId).get();
-          old.forEach(doc => doc.ref.delete());
-          
-          // إضافة الإجابة الجديدة
-          await db.collection('answers_temp').add({ 
-            studentId: student.id, 
-            qId, 
-            ans: answers[qId], 
-            timeSeconds: (examConfig.totalExamTime * 60) - timeLeft 
-          });
-        }
-      } catch (error) {
-        console.error('Error saving temp answer:', error);
-      }
-    }
-
-    async function saveAndExit() {
-      await saveCurrentAnswer();
-      if (confirm('سيتم حفظ إجاباتك والخروج.. هل تريد المتابعة؟')) {
-        clearInterval(mainTimer);
-        clearInterval(questionTimer);
-        // location.href = 'index.html'; // قم بإلغاء التعليق في الإنتاج
+      const qId = questions[current].id;
+      if (answers[qId] !== undefined) {
+        const old = await db.collection('answers_temp')
+                            .where('studentId', '==', student.id)
+                            .where('qId', '==', qId)
+                            .get();
+        old.forEach(doc => doc.ref.delete());
+        await db.collection('answers_temp').add({
+          studentId: student.id,
+          qId,
+          ans: answers[qId],
+          timeSeconds: (45 * 60) - timeLeft
+        });
       }
     }
 
     async function submitAll() {
-      try {
-        let correctCount = 0;
-        questions.forEach(q => {
-          if (answers[q.id] === q.correctIndex) correctCount++;
-        });
-        
-        const timeSpent = (examConfig.totalExamTime * 60) - timeLeft;
-        
-        if (student) {
-          await db.collection('results').add({
-            studentName: student.fullName,
-            weekId: 'week1',
-            correctCount,
-            totalQuestions: questions.length,
-            timeSeconds: timeSpent,
-            timestamp: typeof firebase !== 'undefined' ? firebase.firestore.FieldValue.serverTimestamp() : new Date()
-          });
-          
-          // حذف الإجابات المؤقتة
-          const tempSnap = await db.collection('answers_temp').where('studentId', '==', student.id).get();
-          tempSnap.forEach(doc => doc.ref.delete());
-        }
-        
-        // تحديث تحليل الفقرات
-        await updateItemAnalysis();
-        
-        try {
-          sessionStorage.setItem('result', JSON.stringify({ 
-            correctCount, 
-            totalQuestions: questions.length,
-            timeSeconds: timeSpent, 
-            weekId: 'week1' 
-          }));
-        } catch (error) {
-          console.warn('Could not save result to sessionStorage:', error);
-        }
-        
-        // location.href = 'result.html'; // قم بإلغاء التعليق في الإنتاج
-        alert(`تم الإرسال! النتيجة: ${correctCount}/${questions.length}`);
-      } catch (error) {
-        console.error('Error submitting answers:', error);
-        alert('خطأ في إرسال الإجابات');
-      }
+      let correctCount = 0;
+      questions.slice(0, 40).forEach(q => {          // ← بالضبط ٤٠
+        if (answers[q.id] === q.correctIndex) correctCount++;
+      });
+      const timeSpent = (45 * 60) - timeLeft;
+      await db.collection('results').add({
+        studentName: student.fullName,
+        weekId: 'week1',
+        correctCount,
+        timeSeconds: timeSpent,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      const tempSnap = await db.collection('answers_temp')
+                               .where('studentId', '==', student.id)
+                               .get();
+      tempSnap.forEach(doc => doc.ref.delete());
+      await updateItemAnalysis();
+      sessionStorage.setItem('result', JSON.stringify({
+        correctCount,
+        timeSeconds: timeSpent,
+        weekId: 'week1'
+      }));
+      location.href = 'result.html';
     }
 
-    // ⭐ دالة تحديث معامل الصعوبة والتمييز (محسنة)
+    // تحديث معاملات السؤال
     async function updateItemAnalysis() {
-      try {
-        const allResults = await db.collection('results').where('weekId', '==', 'week1').get();
-        const total = allResults.size;
-        if (total < 5) return; // لا نحسب حتى يكتمل 5 طلاب على الأقل
-
-        const questionsSnap = await db.collection('questions').where('weekId', '==', 'week1').get();
-        
-        for (const qDoc of questionsSnap.docs) {
-          const qId = qDoc.id;
-          const correctIndex = qDoc.data().correctIndex;
-
-          let correctCount = 0;
-          let allAnswers = [];
-
-          // جمع إجابات جميع الطلاب لهذا السؤال
-          for (const resDoc of allResults.docs) {
-            const studentName = resDoc.data().studentName;
-            const studentScore = resDoc.data().correctCount;
-            
-            // البحث عن إجابة الطالب لهذا السؤال
-            const tempSnap = await db.collection('answers_temp')
-              .where('studentId', '==', studentName)
-              .where('qId', '==', qId)
-              .limit(1)
-              .get();
-            
-            const answer = tempSnap.empty ? null : tempSnap.docs[0].data().ans;
-            
-            if (answer === correctIndex) correctCount++;
-            allAnswers.push({ studentName, answer, totalScore: studentScore });
-          }
-
-          // معامل الصعوبة (نسبة الطلاب الذين أجابوا بشكل صحيح)
-          const difficulty = correctCount / total;
-
-          // معامل التمييز (Upper-Lower Group Method)
-          allAnswers.sort((a, b) => b.totalScore - a.totalScore);
-          const groupSize = Math.max(1, Math.ceil(total * 0.27));
-          const upperGroup = allAnswers.slice(0, groupSize);
-          const lowerGroup = allAnswers.slice(-groupSize);
-          
-          const upperCorrect = upperGroup.filter(s => s.answer === correctIndex).length;
-          const lowerCorrect = lowerGroup.filter(s => s.answer === correctIndex).length;
-          const discrimination = (upperCorrect - lowerCorrect) / groupSize;
-
-          // كتابة المعاملات
-          await db.collection('questions').doc(qId).update({
-            difficulty: difficulty,
-            discrimination: discrimination
-          });
+      const allResults = await db.collection('results')
+                                 .where('weekId', '==', 'week1')
+                                 .get();
+      const total = allResults.size;
+      if (total < 5) return;
+      const questionsSnap = await db.collection('questions')
+                                    .where('weekId', '==', 'week1')
+                                    .get();
+      for (const qDoc of questionsSnap.docs) {
+        const qId = qDoc.id;
+        const correctIndex = qDoc.data().correctIndex;
+        let correctCount = 0;
+        let allAnswers = [];
+        for (const resDoc of allResults.docs) {
+          const studentName = resDoc.data().studentName;
+          const tempSnap = await db.collection('answers_temp')
+                                   .where('studentId', '==', studentName)
+                                   .where('qId', '==', qId)
+                                   .limit(1)
+                                   .get();
+          const answer = tempSnap.empty ? null : tempSnap.docs[0].data().ans;
+          if (answer === correctIndex) correctCount++;
+          allAnswers.push({ studentName, answer, totalScore: resDoc.data().correctCount });
         }
-      } catch (error) {
-        console.error('Error updating item analysis:', error);
+        const difficulty = correctCount / total;
+        allAnswers.sort((a, b) => b.totalScore - a.totalScore);
+        const groupSize = Math.max(1, Math.ceil(total * 0.27));
+        const upperCorrect = allAnswers.slice(0, groupSize).filter(s => s.answer === correctIndex).length;
+        const lowerCorrect = allAnswers.slice(-groupSize).filter(s => s.answer === correctIndex).length;
+        const discrimination = (upperCorrect - lowerCorrect) / groupSize;
+        await db.collection('questions').doc(qId).update({ difficulty, discrimination });
       }
     }
 
-    // تحميل الأسئلة عند بدء الصفحة
-    setTimeout(() => {
-      loadQuestions();
-    }, 1000); // انتظار ثانية واحدة لضمان تحميل Firebase
+    loadQuestions();
+  </script>
+</body>
+</html>
