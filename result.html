@@ -12,20 +12,11 @@
     .container{width:90%;max-width:600px;margin:auto}
     .card{background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.12);padding:2rem;margin:2rem 0}
     .score{font-size:3rem;color:var(--secondary);margin:.5rem 0}
-    .score.excellent{color:var(--secondary)}
-    .score.good{color:#ff9800}
-    .score.needs-improvement{color:var(--danger)}
     .top3{list-style:none;padding:0;margin:1rem 0}
     .top3 li{background:var(--accent);color:#000;padding:.5rem 1rem;border-radius:8px;margin:.5rem 0;font-weight:700}
     footer{background:var(--primary);color:#fff;text-align:center;padding:1rem 0;font-size:.8rem;margin-top:auto}
     .btn{background:var(--secondary);color:#fff;border:none;padding:.75rem 2rem;border-radius:8px;cursor:pointer;font-size:1.1rem}
     .btn:hover{background:#166a3a}
-    .performance-indicator{padding:1rem;border-radius:8px;margin:1rem 0}
-    .performance-indicator.excellent{background:#e8f5e9;border:2px solid var(--secondary)}
-    .performance-indicator.good{background:#fff3e0;border:2px solid #ff9800}
-    .performance-indicator.needs-improvement{background:#ffebee;border:2px solid var(--danger)}
-    .debug-section{background:#f8f9fa;border:1px solid #dee2e6;padding:1rem;margin:1rem 0;border-radius:8px;font-size:0.9rem;text-align:right}
-    .loading{text-align:center;padding:2rem}
   </style>
 </head>
 <body>
@@ -39,31 +30,14 @@
   <main class="container">
     <div class="card">
       <h2>نتيجتك في الأسبوع الحالي</h2>
-      <div class="score" id="yourScore">جاري التحميل...</div>
-      <p id="scoreDescription">عدد الإجابات الصحيحة من أصل 40 سؤالاً</p>
-      <div id="performanceIndicator" class="performance-indicator" style="display:none;">
-        <h3 id="performanceTitle"></h3>
-        <p id="performanceMessage"></p>
-      </div>
-      <div id="timeInfo" style="display:none;">
-        <p><strong>الوقت المستغرق:</strong> <span id="timeSpent"></span></p>
-      </div>
-      <button class="btn" onclick="goHome()">العودة للرئيسية</button>
+      <div class="score" id="yourScore"></div>
+      <p>عدد الإجابات الصحيحة من أصل 40 سؤالاً</p>
+      <button class="btn" onclick="location.href='index.html'">العودة للرئيسية</button>
     </div>
 
     <div class="card">
       <h2>لوحة الشرف – أفضل 3 طلاب هذا الأسبوع</h2>
-      <div id="leaderboardLoading" class="loading">جاري تحميل لوحة الشرف...</div>
-      <ol class="top3" id="top3" style="display:none;"></ol>
-      <div id="leaderboardError" style="display:none;">
-        <p>لا يمكن تحميل لوحة الشرف حالياً</p>
-      </div>
-    </div>
-
-    <!-- قسم تصحيح الأخطاء -->
-    <div id="debugSection" class="debug-section" style="display:none;">
-      <h3>معلومات تصحيح الأخطاء</h3>
-      <div id="debugInfo"></div>
+      <ol class="top3" id="top3"></ol>
     </div>
   </main>
 
@@ -74,255 +48,46 @@
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCwmnuN3GmXh-Snj_SGXVYxvC4BoksHuts",
+      authDomain: "naafis-platform.firebaseapp.com",
+      projectId: "naafis-platform",
+      storageBucket: "naafis-platform.firebasestorage.app",
+      messagingSenderId: "337917395597",
+      appId: "1:337917395597:web:6c90a2847ac51ed0c658c4"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+  </script>
 
   <script>
-    let firebase, db;
-    let isFirebaseReady = false;
-    let debugMode = true; // تعيين إلى false في الإنتاج
-
-    function initializeFirebase() {
-      try {
-        if (typeof firebase === 'undefined') {
-          console.log('Firebase لم يتم تحميله بعد، سأعيد المحاولة...');
-          setTimeout(initializeFirebase, 100);
-          return;
-        }
-        
-        const firebaseConfig = {
-          apiKey: "AIzaSyCwmnuN3GmXh-Snj_SGXVYxvC4BoksHuts",
-          authDomain: "naafis-platform.firebaseapp.com",
-          projectId: "naafis-platform",
-          storageBucket: "naafis-platform.firebasestorage.app",
-          messagingSenderId: "337917395597",
-          appId: "1:337917395597:web:6c90a2847ac51ed0c658c4"
-        };
-        
-        firebase.initializeApp(firebaseConfig);
-        db = firebase.firestore();
-        isFirebaseReady = true;
-        debugLog('✅ تم تهيئة Firebase بنجاح');
-        
-        // بدء تحميل البيانات
-        loadResults();
-        loadLeaderboard();
-      } catch (error) {
-        console.error('خطأ في تهيئة Firebase:', error);
-        debugLog('❌ خطأ في تهيئة Firebase: ' + error.message);
-        setTimeout(initializeFirebase, 1000);
-      }
+    // ✅ عرض النتيجة الشخصية
+    const res = JSON.parse(sessionStorage.getItem('result'));
+    console.log('النتيجة في result.html:', res);
+    if (res) {
+      document.getElementById('yourScore').textContent = `${res.correctCount} / 40`;
+    } else {
+      document.getElementById('yourScore').textContent = 'غير متاحة';
+      console.warn('لا توجد نتيجة في sessionStorage');
     }
 
-    // بديل آمن لـ sessionStorage
-    function getStorage(key) {
-      try {
-        if (typeof sessionStorage !== 'undefined') {
-          return sessionStorage.getItem(key);
-        } else {
-          return window.tempStorage ? window.tempStorage[key] : null;
-        }
-      } catch (error) {
-        console.warn('لا يمكن قراءة sessionStorage، سيتم استخدام الذاكرة المؤقتة');
-        return window.tempStorage ? window.tempStorage[key] : null;
-      }
-    }
-
-    function debugLog(message, data = null) {
-      if (debugMode) {
-        console.log(message, data);
-        const debugDiv = document.getElementById('debugInfo');
-        if (debugDiv) {
-          document.getElementById('debugSection').style.display = 'block';
-          debugDiv.innerHTML += `<div><strong>${new Date().toLocaleTimeString()}:</strong> ${message} ${data ? JSON.stringify(data) : ''}</div>`;
-        }
-      }
-    }
-
-    function goHome() {
-      try {
-        window.location.href = 'index.html';
-      } catch (error) {
-        alert('انتهت المسابقة بنجاح! شكراً لمشاركتك.');
-      }
-    }
-
-    function formatTime(seconds) {
-      const minutes = Math.floor(seconds / 60);
-      const remainingSeconds = seconds % 60;
-      return `${minutes} دقيقة و ${remainingSeconds} ثانية`;
-    }
-
-    function getPerformanceLevel(score, total) {
-      const percentage = (score / total) * 100;
-      if (percentage >= 80) return 'excellent';
-      if (percentage >= 60) return 'good';
-      return 'needs-improvement';
-    }
-
-    function getPerformanceMessage(score, total) {
-      const percentage = (score / total) * 100;
-      if (percentage >= 80) {
-        return {
-          title: '🎉 أداء ممتاز!',
-          message: 'تهانينا! لقد حققت نتيجة رائعة. استمر في التميز!'
-        };
-      } else if (percentage >= 60) {
-        return {
-          title: '👍 أداء جيد',
-          message: 'نتيجة جيدة! يمكنك تحسين أدائك أكثر مع المزيد من التدريب.'
-        };
-      } else {
-        return {
-          title: '💪 يمكنك التحسن',
-          message: 'لا تيأس! المراجعة والتدريب المستمر سيحسن من نتائجك.'
-        };
-      }
-    }
-
-    function loadResults() {
-      debugLog('بدء تحميل النتائج...');
-      
-      // محاولة الحصول على النتيجة من التخزين المحلي
-      const resultString = getStorage('result');
-      debugLog('البيانات المحفوظة محلياً:', resultString);
-      
-      if (resultString) {
-        try {
-          const result = JSON.parse(resultString);
-          debugLog('تم تحليل النتيجة:', result);
-          displayResult(result);
-        } catch (error) {
-          debugLog('خطأ في تحليل النتيجة:', error);
-          showDefaultResult();
-        }
-      } else {
-        debugLog('لا توجد نتيجة محفوظة محلياً');
-        showDefaultResult();
-      }
-    }
-
-    function displayResult(result) {
-      const scoreElement = document.getElementById('yourScore');
-      const timeInfoElement = document.getElementById('timeInfo');
-      const timeSpentElement = document.getElementById('timeSpent');
-      const performanceIndicator = document.getElementById('performanceIndicator');
-      const performanceTitle = document.getElementById('performanceTitle');
-      const performanceMessage = document.getElementById('performanceMessage');
-
-      if (scoreElement) {
-        const score = result.correctCount || 0;
-        const total = 40;
-        scoreElement.textContent = `${score} / ${total}`;
-        
-        // تطبيق لون النتيجة
-        const level = getPerformanceLevel(score, total);
-        scoreElement.className = `score ${level}`;
-        
-        // عرض مؤشر الأداء
-        const performance = getPerformanceMessage(score, total);
-        performanceIndicator.className = `performance-indicator ${level}`;
-        performanceIndicator.style.display = 'block';
-        performanceTitle.textContent = performance.title;
-        performanceMessage.textContent = performance.message;
-      }
-
-      if (result.timeSeconds && timeInfoElement && timeSpentElement) {
-        timeSpentElement.textContent = formatTime(result.timeSeconds);
-        timeInfoElement.style.display = 'block';
-      }
-
-      debugLog('تم عرض النتيجة:', {
-        score: result.correctCount,
-        time: result.timeSeconds,
-        level: getPerformanceLevel(result.correctCount || 0, 40)
+    // ✅ عرض لوحة الشرف
+    db.collection('results')
+      .where('weekId', '==', 'week1')
+      .orderBy('correctCount', 'desc')
+      .orderBy('timeSeconds', 'asc')
+      .limit(3)
+      .onSnapshot(snap => {
+        const list = document.getElementById('top3');
+        list.innerHTML = '';
+        snap.forEach((doc, idx) => {
+          const d = doc.data();
+          const li = document.createElement('li');
+          li.textContent = `${idx + 1}. ${d.studentName} – ${d.correctCount}/40 – ${d.timeSeconds} ث`;
+          list.appendChild(li);
+        });
       });
-    }
-
-    function showDefaultResult() {
-      const scoreElement = document.getElementById('yourScore');
-      const descriptionElement = document.getElementById('scoreDescription');
-      
-      if (scoreElement) {
-        scoreElement.textContent = 'غير متاحة';
-        scoreElement.className = 'score';
-      }
-      
-      if (descriptionElement) {
-        descriptionElement.textContent = 'لم يتم العثور على نتيجة محفوظة';
-      }
-      
-      debugLog('تم عرض النتيجة الافتراضية');
-    }
-
-    function loadLeaderboard() {
-      if (!isFirebaseReady) {
-        debugLog('Firebase غير جاهز، سأعيد المحاولة لاحقاً...');
-        setTimeout(loadLeaderboard, 1000);
-        return;
-      }
-
-      debugLog('بدء تحميل لوحة الشرف...');
-      
-      try {
-        db.collection('results')
-          .where('weekId', '==', 'week1')
-          .orderBy('correctCount', 'desc')
-          .orderBy('timeSeconds', 'asc')
-          .limit(3)
-          .get()
-          .then(snapshot => {
-            const leaderboardLoading = document.getElementById('leaderboardLoading');
-            const leaderboardList = document.getElementById('top3');
-            const leaderboardError = document.getElementById('leaderboardError');
-            
-            if (leaderboardLoading) leaderboardLoading.style.display = 'none';
-            
-            if (!snapshot.empty) {
-              if (leaderboardList) {
-                leaderboardList.innerHTML = '';
-                leaderboardList.style.display = 'block';
-                
-                snapshot.forEach((doc, idx) => {
-                  const data = doc.data();
-                  const li = document.createElement('li');
-                  li.textContent = `${idx + 1}. ${data.studentName || 'طالب مجهول'} – ${data.correctCount || 0}/40 – ${data.timeSeconds || 0} ث`;
-                  leaderboardList.appendChild(li);
-                });
-                
-                debugLog('تم تحميل لوحة الشرف:', snapshot.size + ' طلاب');
-              }
-            } else {
-              if (leaderboardError) {
-                leaderboardError.style.display = 'block';
-                leaderboardError.innerHTML = '<p>لا توجد نتائج متاحة حالياً</p>';
-              }
-              debugLog('لا توجد نتائج في لوحة الشرف');
-            }
-          })
-          .catch(error => {
-            console.error('خطأ في تحميل لوحة الشرف:', error);
-            debugLog('خطأ في تحميل لوحة الشرف:', error.message);
-            
-            const leaderboardLoading = document.getElementById('leaderboardLoading');
-            const leaderboardError = document.getElementById('leaderboardError');
-            
-            if (leaderboardLoading) leaderboardLoading.style.display = 'none';
-            if (leaderboardError) leaderboardError.style.display = 'block';
-          });
-      } catch (error) {
-        console.error('خطأ في إعداد استعلام لوحة الشرف:', error);
-        debugLog('خطأ في إعداد استعلام لوحة الشرف:', error.message);
-      }
-    }
-
-    // بدء التطبيق عند تحميل الصفحة
-    window.addEventListener('load', function() {
-      debugLog('تم تحميل صفحة النتائج');
-      loadResults(); // تحميل النتائج المحلية فوراً
-      setTimeout(initializeFirebase, 500); // تهيئة Firebase لتحميل لوحة الشرف
-    });
-
-    // إتاحة الوظائف للنطاق العام
-    window.goHome = goHome;
   </script>
 </body>
 </html>
