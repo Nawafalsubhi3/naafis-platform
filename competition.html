@@ -127,7 +127,7 @@
       document.getElementById('prevBtn').disabled  = current === 0;
       document.getElementById('nextBtn').textContent = current === 39 ? 'إرسال الإجابات' : 'التالي';
 
-      // ✅ إفراغ أي اختيار سابق (منع التحديد التلقائي)
+      // ✅ إفراغ أي اختيار سابق تمامًا (منع التحديد التلقائي)
       document.querySelectorAll('input[name="q"]').forEach(inp => inp.checked = false);
 
       document.getElementById('questionArea').innerHTML = `
@@ -151,9 +151,12 @@
       await saveTempAnswer();
       sessionStorage.setItem('currentQ', current);
 
-      if (step === 1 && current === 39) {
+      if (step === 1 && current === 39) {   // ← بالضبط ٣٩ (السؤال الأخير)
         const sure = confirm('هل أنت متأكد من إرسال الإجابات؟');
-        if (sure) { clearInterval(timer); await submitAll(); }
+        if (sure) {
+          clearInterval(timer);
+          await submitAll();               // ← await صريح
+        }
         return;
       }
       current += step;
@@ -200,6 +203,7 @@
         timeSeconds: timeSpent,
         weekId: 'week1'
       }));
+      alert(`✅ تم الإرسال بنجاح! النتيجة: ${correctCount}/40`);
       location.href = 'result.html';
     }
 
