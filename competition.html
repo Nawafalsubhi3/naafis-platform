@@ -191,10 +191,23 @@
     // ✅ دالة الإرسال النهائي (مع التأكد من الانتقال)
     async function submitAll() {
       try {
+        console.log('بدء الإرسال...');
+        console.log('الإجابات المحفوظة:', answers);
+
         let correctCount = 0;
-        questions.slice(0, 40).forEach(q => {
-          if (answers[q.id] === q.correctIndex) correctCount++;
+        questions.slice(0, 40).forEach((q, index) => {
+          const studentAnswer = answers[q.id]; // قد تكون undefined أو null
+          const correctAnswer = q.correctIndex; // قد تكون undefined
+
+          console.log(`س${index + 1}: الطالب = ${studentAnswer}, الصحيح = ${correctAnswer}, مطابقة؟ ${studentAnswer === correctAnswer}`);
+
+          if (studentAnswer !== undefined && studentAnswer === correctAnswer) {
+            correctCount++;
+          }
         });
+
+        console.log('عدد الإجابات الصحيحة:', correctCount);
+
         const timeSpent = (45 * 60) - timeLeft;
 
         // ✅ إرسال النتيجة إلى Firestore
