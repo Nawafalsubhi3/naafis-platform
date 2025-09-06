@@ -28,7 +28,6 @@
     .nav-buttons .next{background:var(--secondary);color:#fff}
     .nav-buttons .exit{background:var(--danger);color:#fff}
     footer{text-align:center;padding:1rem 0;font-size:.8rem;color:#555}
-    .debug-info{background:#fff3cd;border:1px solid #ffeaa7;padding:1rem;margin:1rem 0;border-radius:8px;font-size:0.9rem;display:none}
   </style>
 </head>
 <body>
@@ -45,7 +44,6 @@
   <main>
     <div class="container">
       <div id="questionArea" class="question-card"></div>
-      <div class="debug-info" id="debugInfo"></div>
       <div class="nav-buttons">
         <button class="prev" id="prevBtn" onclick="changeQuestion(-1)">السابق</button>
         <button class="exit" onclick="saveAndExit()">حفظ وخروج</button>
@@ -61,218 +59,103 @@
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-  
   <script>
-    // متغيرات عامة
-    let db;
-    let isFirebaseReady = false;
+    const firebaseConfig = {
+      apiKey: "AIzaSyCwmnuN3GmXh-Snj_SGXVYxvC4BoksHuts",
+      authDomain: "naafis-platform.firebaseapp.com",
+      projectId: "naafis-platform",
+      storageBucket: "naafis-platform.firebasestorage.app",
+      messagingSenderId: "337917395597",
+      appId: "1:337917395597:web:6c90a2847ac51ed0c658c4"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+  </script>
+
+  <script>
     let questions = [];
-    let current = 0;
-    let answers = {};
-    let timeLeft = 45 * 60;
-    let debugMode = true;
-    let student = null;
+    let current   = 0;
+    let answers   = {};
+    let timeLeft  = 45 * 60;
 
-    // بديل آمن لـ sessionStorage
-    function setStorage(key, value) {
-      try {
-        if (typeof sessionStorage !== 'undefined') {
-          sessionStorage.setItem(key, value);
-        } else {
-          window.tempStorage = window.tempStorage || {};
-          window.tempStorage[key] = value;
-        }
-      } catch (error) {
-        window.tempStorage = window.tempStorage || {};
-        window.tempStorage[key] = value;
+    const student = JSON.parse(sessionStorage.getItem('student'));
+    if (!student) location.href = 'login.html';
+
+    // استعادة رقم السؤال إن وُجد
+    const savedQ = sessionStorage.getItem('currentQ');
+    if (savedQ) current = parseInt(savedQ);
+
+    // مؤقت رئيسي
+    const timer = setInterval(() => {
+      timeLeft--;
+      const m = String(Math.floor(timeLeft / 60)).padStart(2, '0');
+      const s = String(timeLeft % 60).padStart(2, '0');
+      document.getElementById('count').textContent = `${m}:${s}`;
+      if (timeLeft <= 0) {
+        clearInterval(timer);
+        submitAll();
       }
-    }
+    }, 1000);
 
-    function getStorage(key) {
-      try {
-        if (typeof sessionStorage !== 'undefined') {
-          return sessionStorage.getItem(key);
-        } else {
-          return window.tempStorage ? window.tempStorage[key] : null;
-        }
-      } catch (error) {
-        return window.tempStorage ? window.tempStorage[key] : null;
-      }
-    }
-
-    // دالة تصحيح الأخطاء
-    function debugLog(message, data = null) {
-      if (debugMode) {
-        console.log(message, data);
-        const debugDiv = document.getElementById('debugInfo');
-        if (debugDiv) {
-          debugDiv.style.display = 'block';
-          debugDiv.innerHTML += '<div><strong>' + message + '</strong> ' + (data ? JSON.stringify(data) : '') + '</div>';
-        }
-      }
-    }
-
-    // تهيئة Firebase
-    function initializeFirebase() {
-      try {
-        if (typeof window.firebase === 'undefined') {
-          debugLog('Firebase لم يتم تحميله بعد، سأعيد المحاولة...');
-          setTimeout(initializeFirebase, 200);
-          return;
-        }
-        
-        const firebaseConfig = {
-          apiKey: "AIzaSyCwmnuN3GmXh-Snj_SGXVYxvC4BoksHuts",
-          authDomain: "naafis-platform.firebaseapp.com",
-          projectId: "naafis-platform",
-          storageBucket: "naafis-platform.firebasestorage.app",
-          messagingSenderId: "337917395597",
-          appId: "1:337917395597:web:6c90a2847ac51ed0c658c4"
-        };
-        
-        if (!window.firebase.apps.length) {
-          window.firebase.initializeApp(firebaseConfig);
-        }
-        db = window.firebase.firestore();
-        isFirebaseReady = true;
-        debugLog('✅ تم تهيئة Firebase بنجاح');
-        
-        initializeApp();
-      } catch (error) {
-        debugLog('❌ خطأ في تهيئة Firebase: ' + error.message);
-        isFirebaseReady = false;
-        initializeApp();
-      }
-    }
-
-    function initializeApp() {
-      // إعداد بيانات الطالب
-      const studentData = getStorage('student');
-      if (studentData) {
-        try {
-          student = JSON.parse(studentData);
-        } catch (error) {
-          student = { id: 'test_student', fullName: 'طالب تجريبي' };
-        }
-      } else {
-        student = { id: 'test_student', fullName: 'طالب تجريبي' };
-      }
-
-      // استعادة السؤال الحالي
-      const savedQ = getStorage('currentQ');
-      if (savedQ) {
-        current = parseInt(savedQ);
-      }
-
-      startTimer();
-      loadQuestions();
-    }
-
-    function startTimer() {
-      const timer = setInterval(function() {
-        timeLeft--;
-        const m = String(Math.floor(timeLeft / 60)).padStart(2, '0');
-        const s = String(timeLeft % 60).padStart(2, '0');
-        const countElement = document.getElementById('count');
-        if (countElement) {
-          countElement.textContent = m + ':' + s;
-        }
-        if (timeLeft <= 0) {
-          clearInterval(timer);
-          submitAll();
-        }
-      }, 1000);
-    }
-
-    // تحميل الأسئلة
+    // تحميل الأسئلة المختارة (بالضبط ٤٠)
     async function loadQuestions() {
-      try {
-        // أسئلة تجريبية للاختبار
-        questions = [];
-        for (let i = 0; i < 40; i++) {
-          questions.push({
-            id: 'q_' + (i + 1),
-            questionText: 'هذا السؤال رقم ' + (i + 1) + ' - ما هو الخيار الصحيح؟',
-            choices: ['الخيار الأول', 'الخيار الثاني', 'الخيار الثالث', 'الخيار الرابع'],
-            correctIndex: Math.floor(Math.random() * 4),
-            subject: ['math', 'arabic', 'science'][i % 3]
-          });
-        }
+      const snap = await db.collection('questions')
+                           .where('weekId', '==', 'week1')
+                           .where('selected', '==', true)
+                           .get();
+      questions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      questions = questions.slice(0, 40);           // ← بالضبط ٤٠
+      questions.sort(() => Math.random() - 0.5);   // خلط عشوائي
 
-        // خلط عشوائي
-        questions.sort(function() { return Math.random() - 0.5; });
+      // استرجاع إجابات محفوظة
+      const savedSnap = await db.collection('answers_temp')
+                                .where('studentId', '==', student.id)
+                                .get();
+      savedSnap.forEach(doc => {
+        const d = doc.data();
+        answers[d.qId] = d.ans;
+      });
 
-        debugLog('تم تحميل الأسئلة:', { count: questions.length });
-        renderQuestion();
-      } catch (error) {
-        debugLog('خطأ في تحميل الأسئلة:', error.message);
-        renderQuestion();
-      }
+      renderQuestion();
     }
 
-    // عرض السؤال
+    // عرض السؤال (بدون شرح وبدون اختيار تلقائي)
     function renderQuestion() {
       const q = questions[current];
-      if (!q) {
-        debugLog('السؤال غير موجود:', current);
-        return;
-      }
+      document.getElementById('qNum').textContent  = current + 1;
+      document.getElementById('bar').style.width   = `${((current + 1) / 40) * 100}%`;
+      document.getElementById('prevBtn').disabled  = current === 0;
+      document.getElementById('nextBtn').textContent = current === 39 ? 'إرسال الإجابات' : 'التالي';
 
-      const qNumElement = document.getElementById('qNum');
-      const barElement = document.getElementById('bar');
-      const prevBtn = document.getElementById('prevBtn');
-      const nextBtn = document.getElementById('nextBtn');
-      
-      if (qNumElement) qNumElement.textContent = current + 1;
-      if (barElement) barElement.style.width = ((current + 1) / 40) * 100 + '%';
-      if (prevBtn) prevBtn.disabled = current === 0;
-      if (nextBtn) nextBtn.textContent = current === 39 ? 'إرسال الإجابات' : 'التالي';
+      // ✅ إفراغ أي اختيار سابق تمامًا (منع التحديد التلقائي)
+      document.querySelectorAll('input[name="q"]').forEach(inp => inp.checked = false);
 
-      const questionArea = document.getElementById('questionArea');
-      if (questionArea) {
-        let choicesHtml = '';
-        if (q.choices) {
-          for (let idx = 0; idx < q.choices.length; idx++) {
-            const isChecked = answers[q.id] === idx ? 'checked' : '';
-            choicesHtml += '<input type="radio" name="q" id="c' + idx + '" value="' + idx + '" ' + isChecked + '>';
-            choicesHtml += '<label for="c' + idx + '">' + q.choices[idx] + '</label>';
-          }
-        }
-
-        questionArea.innerHTML = 
-          '<div class="question-header">' +
-            '<h3>السؤال ' + (current + 1) + ' من 40</h3>' +
-            '<span>' + (q.subject === 'math' ? 'رياضيات' : q.subject === 'arabic' ? 'لغة عربية' : 'علوم') + '</span>' +
-          '</div>' +
-          '<p>' + (q.questionText || 'نص السؤال غير متاح') + '</p>' +
-          '<div class="choices">' + choicesHtml + '</div>';
-      }
-
-      debugLog('عرض السؤال ' + (current + 1) + ':', {
-        questionId: q.id,
-        correctIndex: q.correctIndex,
-        studentAnswer: answers[q.id]
-      });
+      document.getElementById('questionArea').innerHTML = `
+        <div class="question-header">
+          <h3>السؤال ${current + 1} من ٤٠</h3>
+          <span>${q.subject === 'math' ? 'رياضيات' : q.subject === 'arabic' ? 'لغة عربية' : 'علوم'}</span>
+        </div>
+        <p>${q.questionText}</p>
+        <div class="choices">
+          ${q.choices.map((ch, idx) => `
+            <input type="radio" name="q" id="c${idx}" value="${idx}" ${answers[q.id] === idx ? 'checked' : ''}>
+            <label for="c${idx}">${ch}</label>
+          `).join('')}
+        </div>
+      `;
     }
 
-    // تغيير السؤال
     async function changeQuestion(step) {
       const sel = document.querySelector('input[name="q"]:checked');
-      if (sel) {
-        const answerValue = parseInt(sel.value);
-        answers[questions[current].id] = answerValue;
-        debugLog('تم حفظ الإجابة للسؤال ' + (current + 1) + ':', {
-          questionId: questions[current].id,
-          answer: answerValue
-        });
-      }
-      
-      setStorage('currentQ', current.toString());
+      if (sel) answers[questions[current].id] = parseInt(sel.value);
+      await saveTempAnswer();
+      sessionStorage.setItem('currentQ', current);
 
-      if (step === 1 && current === 39) {
+      if (step === 1 && current === 39) {   // ← بالضبط ٣٩ (السؤال الأخير)
         const sure = confirm('هل أنت متأكد من إرسال الإجابات؟');
         if (sure) {
-          await submitAll();
+          clearInterval(timer);
+          await submitAll();               // ← await صريح
         }
         return;
       }
@@ -280,97 +163,115 @@
       renderQuestion();
     }
 
-    // حفظ والخروج
-    async function saveAndExit() {
-      if (confirm('سيتم حفظ إجاباتك والخروج.. هل تريد المتابعة؟')) {
-        try {
-          window.location.href = 'index.html';
-        } catch (error) {
-          alert('تم حفظ الإجابات بنجاح');
-        }
+    async function saveTempAnswer() {
+      const qId = questions[current].id;
+      if (answers[qId] !== undefined) {
+        const old = await db.collection('answers_temp')
+                            .where('studentId', '==', student.id)
+                            .where('qId', '==', qId)
+                            .get();
+        old.forEach(doc => doc.ref.delete());
+        await db.collection('answers_temp').add({
+          studentId: student.id,
+          qId,
+          ans: answers[qId],
+          timeSeconds: (45 * 60) - timeLeft
+        });
       }
     }
 
-    // إرسال جميع الإجابات
+    async function saveAndExit() {
+      await saveTempAnswer();
+      if (confirm('سيتم حفظ إجاباتك والخروج.. هل تريد المتابعة؟')) {
+        clearInterval(timer);
+        location.href = 'index.html';
+      }
+    }
+
+    // ✅ دالة الإرسال النهائي (مع التأكد من الانتقال)
     async function submitAll() {
       try {
-        debugLog('بدء الإرسال...');
-        debugLog('الإجابات المحفوظة:', answers);
+        console.log('بدء الإرسال...');
+        console.log('الإجابات المحفوظة:', answers);
 
         let correctCount = 0;
-        let totalAnswered = 0;
-        
-        for (let index = 0; index < questions.length && index < 40; index++) {
-          const q = questions[index];
-          const studentAnswer = answers[q.id];
-          const correctAnswer = q.correctIndex;
-          
-          debugLog('تحليل السؤال ' + (index + 1) + ':', {
-            questionId: q.id,
-            studentAnswer: studentAnswer,
-            correctAnswer: correctAnswer,
-            isAnswered: studentAnswer !== undefined,
-            isCorrect: studentAnswer !== undefined && parseInt(studentAnswer) === parseInt(correctAnswer)
-          });
+        questions.slice(0, 40).forEach((q, index) => {
+          const studentAnswer = answers[q.id]; // قد تكون undefined أو null
+          const correctAnswer = q.correctIndex; // قد تكون undefined
 
-          if (studentAnswer !== undefined) {
-            totalAnswered++;
-            if (parseInt(studentAnswer) === parseInt(correctAnswer)) {
-              correctCount++;
-              debugLog('✅ إجابة صحيحة للسؤال ' + (index + 1));
-            } else {
-              debugLog('❌ إجابة خاطئة للسؤال ' + (index + 1));
-            }
-          } else {
-            debugLog('⚪ لم يتم الإجابة على السؤال ' + (index + 1));
+          console.log(`س${index + 1}: الطالب = ${studentAnswer}, الصحيح = ${correctAnswer}, مطابقة؟ ${studentAnswer === correctAnswer}`);
+
+          if (studentAnswer !== undefined && studentAnswer === correctAnswer) {
+            correctCount++;
           }
-        }
-
-        debugLog('النتيجة النهائية:', {
-          correctCount: correctCount,
-          totalAnswered: totalAnswered,
-          totalQuestions: 40
         });
+
+        console.log('عدد الإجابات الصحيحة:', correctCount);
 
         const timeSpent = (45 * 60) - timeLeft;
 
-        // حفظ النتيجة محلياً
-        const resultData = {
+        // ✅ إرسال النتيجة إلى Firestore
+        await db.collection('results').add({
+          studentName: student.fullName,
+          weekId: 'week1',
           correctCount: correctCount,
-          totalAnswered: totalAnswered,
+          timeSeconds: timeSpent,
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        // ✅ حفظ النتيجة محليًا
+        sessionStorage.setItem('result', JSON.stringify({
+          correctCount: correctCount,
           timeSeconds: timeSpent,
           weekId: 'week1'
-        };
-        
-        setStorage('result', JSON.stringify(resultData));
-        debugLog('تم حفظ النتيجة محلياً:', resultData);
+        }));
 
-        // عرض النتيجة
-        alert('انتهت المسابقة!\nالنتيجة: ' + correctCount + ' من 40\nالوقت المستغرق: ' + Math.floor(timeSpent / 60) + ' دقيقة و ' + (timeSpent % 60) + ' ثانية');
-
-        // الانتقال لصفحة النتائج
-        try {
-          window.location.href = 'result.html';
-        } catch (error) {
-          debugLog('لا يمكن الانتقال إلى صفحة النتائج');
-        }
+        // ✅ الانتقال الفوري إلى صفحة النتائج
+        location.href = 'result.html';
 
       } catch (error) {
-        debugLog('خطأ في الإرسال:', error.message);
-        alert('حدث خطأ أثناء الإرسال، لكن تم حفظ النتيجة محلياً');
+        console.error('خطأ في الإرسال:', error);
+        alert('حدث خطأ أثناء الإرسال، حاول مرة أخرى.');
       }
     }
 
-    // بدء التطبيق
-    window.addEventListener('load', function() {
-      debugLog('تم تحميل الصفحة، بدء التهيئة...');
-      setTimeout(initializeFirebase, 500);
-    });
+    // تحديث معاملات السؤال
+    async function updateItemAnalysis() {
+      const allResults = await db.collection('results')
+                                 .where('weekId', '==', 'week1')
+                                 .get();
+      const total = allResults.size;
+      if (total < 5) return;
+      const questionsSnap = await db.collection('questions')
+                                    .where('weekId', '==', 'week1')
+                                    .get();
+      for (const qDoc of questionsSnap.docs) {
+        const qId = qDoc.id;
+        const correctIndex = qDoc.data().correctIndex;
+        let correctCount = 0;
+        let allAnswers = [];
+        for (const resDoc of allResults.docs) {
+          const studentName = resDoc.data().studentName;
+          const tempSnap = await db.collection('answers_temp')
+                                   .where('studentId', '==', studentName)
+                                   .where('qId', '==', qId)
+                                   .limit(1)
+                                   .get();
+          const answer = tempSnap.empty ? null : tempSnap.docs[0].data().ans;
+          if (answer === correctIndex) correctCount++;
+          allAnswers.push({ studentName, answer, totalScore: resDoc.data().correctCount });
+        }
+        const difficulty = correctCount / total;
+        allAnswers.sort((a, b) => b.totalScore - a.totalScore);
+        const groupSize = Math.max(1, Math.ceil(total * 0.27));
+        const upperCorrect = allAnswers.slice(0, groupSize).filter(s => s.answer === correctIndex).length;
+        const lowerCorrect = allAnswers.slice(-groupSize).filter(s => s.answer === correctIndex).length;
+        const discrimination = (upperCorrect - lowerCorrect) / groupSize;
+        await db.collection('questions').doc(qId).update({ difficulty, discrimination });
+      }
+    }
 
-    // إتاحة الدوال للنطاق العام
-    window.changeQuestion = changeQuestion;
-    window.saveAndExit = saveAndExit;
-    window.submitAll = submitAll;
+    loadQuestions();
   </script>
 </body>
 </html>
