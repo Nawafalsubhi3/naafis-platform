@@ -6,15 +6,71 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    :root{--primary:#003865;--secondary:#1e8a4c;--light:#f5f7fa}
-    body{font-family:'Cairo',sans-serif;background:var(--light);display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
-    .card{background:#fff;border-radius:12px;box-shadow:0 4px 25px rgba(0,0,0,.15);padding:2rem 2.5rem;width:90%;max-width:380px}
-    .card h2{color:var(--primary);margin-bottom:1.5rem;text-align:center}
-    .card input{width:100%;padding:.75rem;margin:.5rem 0;border:1px solid #ccc;border-radius:8px;font-size:1rem}
-    .card button{width:100%;padding:.75rem;background:var(--secondary);color:#fff;border:none;border-radius:8px;font-size:1.1rem;cursor:pointer}
+    :root{
+      --primary  : #003865;
+      --secondary: #1e8a4c;
+      --accent   : #ffce00;
+      --light    : #f5f7fa;
+      --danger   : #c62828;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      font-family:'Cairo',sans-serif;
+      background:var(--light);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      min-height:100vh;
+      margin:0;
+      color:#222;
+    }
+    .card{
+      background:#fff;
+      border-radius:12px;
+      box-shadow:0 4px 25px rgba(0,0,0,.15);
+      padding:2.5rem 2rem;
+      width:90%;
+      max-width:380px;
+      text-align:center;
+    }
+    .logo img{height:70px}
+    .card h2{color:var(--primary);margin:1rem 0 1.5rem}
+    .card input{
+      width:100%;
+      padding:.75rem;
+      margin:.5rem 0;
+      border:1px solid #ccc;
+      border-radius:8px;
+      font-size:1rem;
+      transition:border .3s;
+    }
+    .card input:focus{outline:none;border-color:var(--secondary)}
+    .card button{
+      width:100%;
+      padding:.75rem;
+      background:var(--secondary);
+      color:#fff;
+      border:none;
+      border-radius:8px;
+      font-size:1.1rem;
+      cursor:pointer;
+      transition:background .3s;
+    }
     .card button:hover{background:#166a3a}
-    .logo{text-align:center;margin-bottom:1rem}
-    .logo img{height:60px}
+    .card .error{
+      color:var(--danger);
+      margin-top:.5rem;
+      font-size:.9rem;
+      display:none;
+    }
+    .card a{
+      display:inline-block;
+      margin-top:1rem;
+      color:var(--primary);
+      text-decoration:none;
+      font-weight:700;
+    }
+    .card a:hover{text-decoration:underline}
   </style>
 </head>
 <body>
@@ -27,14 +83,15 @@
       <input id="fullName" type="text" placeholder="الاسم الرباعي" required>
       <input id="password" type="password" placeholder="الرقم السري" required>
       <button type="submit">دخول</button>
+      <div class="error" id="error">البيانات غير صحيحة، حاول مرة أخرى</div>
     </form>
+    <a href="student-register.html">تسجيل حساب جديد</a>
   </div>
 
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <script>
-    // ضع بياناتك التي نسختها هنا:
     const firebaseConfig = {
       apiKey: "AIzaSyCwmnuN3GmXh-Snj_SGXVYxvC4BoksHuts",
       authDomain: "naafis-platform.firebaseapp.com",
@@ -46,13 +103,20 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
   </script>
+
   <script>
     document.getElementById('loginForm').addEventListener('submit', async (e)=>{
       e.preventDefault();
       const name = document.getElementById('fullName').value.trim();
       const pass = document.getElementById('password').value.trim();
-      const snap = await db.collection('students').where('fullName','==',name).where('password','==',pass).limit(1).get();
-      if(snap.empty){alert('البيانات غير صحيحة'); return;}
+      const snap = await db.collection('students')
+                           .where('fullName','==',name)
+                           .where('password','==',pass)
+                           .limit(1).get();
+      if(snap.empty){
+        document.getElementById('error').style.display='block';
+        return;
+      }
       const student = snap.docs[0].data();
       sessionStorage.setItem('student', JSON.stringify({id:snap.docs[0].id, ...student}));
       location.href = 'competition.html';
