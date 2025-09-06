@@ -74,15 +74,14 @@
   </script>
 
   <script>
-    let questions = []; // يُملأ من Firestore
-    let current = 0;    // السؤال الحالي
-    let answers = {};   // إجابات الطالب {qId: selectedIndex}
+    let questions = [];
+    let current = 0;
+    let answers = {};
     let timeLeft = 30 * 60;
 
     const student = JSON.parse(sessionStorage.getItem('student'));
     if (!student) location.href = 'login.html';
 
-    // مؤقت عام
     const timer = setInterval(async () => {
       timeLeft--;
       const m = String(Math.floor(timeLeft / 60)).padStart(2, '0');
@@ -94,13 +93,10 @@
       }
     }, 1000);
 
-    // تحميل الأسئلة
     async function loadQuestions() {
       const snap = await db.collection('questions').where('weekId', '==', 'week1').get();
       questions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      // ترتيب عشوائي (اختياري)
       questions.sort(() => Math.random() - 0.5);
-      // استرجاع إجابات محفوظة مسبقاً (إن وُجدت)
       const savedSnap = await db.collection('answers_temp').where('studentId', '==', student.id).get();
       savedSnap.forEach(doc => {
         const d = doc.data();
@@ -109,7 +105,6 @@
       renderQuestion();
     }
 
-    // عرض السؤال الحالي
     function renderQuestion() {
       const q = questions[current];
       document.getElementById('qNum').textContent = current + 1;
@@ -133,12 +128,9 @@
       `;
     }
 
-    // الانتقال بين الأسئلة
     async function changeQuestion(step) {
-      // حفظ الإجابة الحالية
       const sel = document.querySelector('input[name="q"]:checked');
       if (sel) answers[questions[current].id] = parseInt(sel.value);
-      // حفظ مؤقت في Firestore
       await saveTempAnswer();
 
       if (step === 1 && current === questions.length - 1) {
@@ -150,18 +142,15 @@
       renderQuestion();
     }
 
-    // حفظ إجابة مؤقتة بعد كل سؤال
     async function saveTempAnswer() {
       const qId = questions[current].id;
       if (answers[qId] !== undefined) {
-        // حذف ثم إعادة كتابة (لمنع التكرار)
         const old = await db.collection('answers_temp').where('studentId', '==', student.id).where('qId', '==', qId).get();
         old.forEach(doc => doc.ref.delete());
         await db.collection('answers_temp').add({ studentId: student.id, qId, ans: answers[qId], timeSeconds: (30 * 60) - timeLeft });
       }
     }
 
-    // خروج مؤقت
     async function saveAndExit() {
       await saveTempAnswer();
       if (confirm('سيتم حفظ إجاباتك والخروج.. هل تريد المتابعة؟')) {
@@ -170,14 +159,12 @@
       }
     }
 
-    // الإرسال النهائي
     async function submitAll() {
       let correctCount = 0;
       questions.forEach(q => {
         if (answers[q.id] === q.correctIndex) correctCount++;
       });
       const timeSpent = (30 * 60) - timeLeft;
-      // كتابة النتيجة
       await db.collection('results').add({
         studentName: student.fullName,
         weekId: 'week1',
@@ -188,12 +175,63 @@
       // حذف الإجابات المؤقتة
       const tempSnap = await db.collection('answers_temp').where('studentId', '==', student.id).get();
       tempSnap.forEach(doc => doc.ref.delete());
-      // الانتقال للنتيجة
+      // ⭐ حساب معامل الصعوبة والتمييز
+      await updateItemAnalysis();
       sessionStorage.setItem('result', JSON.stringify({ correctCount, timeSeconds: timeSpent, weekId: 'week1' }));
       location.href = 'result.html';
     }
 
-    // بدء التحميل
+    // ⭐ دالة تحديث معامل الصعوبة والتمييز
+    async function updateItemAnalysis() {
+      const allResults = await db.collection('results').where('weekId', '==', 'week1').get();
+      const total = allResults.size;
+      if (total < 10) return; // لا نحسب حتى يكتمل 10 طلاب على الأقل
+
+      const questionsSnap = await db.collection('questions').where('weekId', '==', 'week1').get();
+      for (const qDoc of questionsSnap.docs) {
+        const qId = qDoc.id;
+        const correctIndex = qDoc.data().correctIndex;
+
+        let correctCount = 0;
+        let scores = [];
+
+        for (const resDoc of allResults.docs) {
+          const res = resDoc.data();
+          const tempSnap = await db.collection('answers_temp').where('studentId', '==', res.studentName).where('qId', '==', qId).get();
+          const ans = tempSnap.empty ? null : tempSnap.docs[0].data().ans;
+          if (ans === correctIndex) correctCount++;
+          scores.push({ studentId: res.studentName, score: res.correctCount });
+        }
+
+        // معامل الصعوبة
+        const p = correctCount / total;
+
+        // معامل التمييز (Upper-Lower Group Method)
+        scores.sort((a, b) => b.score - a.score);
+        const groupSize = Math.ceil(total * 0.27);
+        const upper = scores.slice(0, groupSize);
+        const lower = scores.slice(-groupSize);
+        const upperCorrect = await countCorrectInGroup(upper, qId, correctIndex);
+        const lowerCorrect = await countCorrectInGroup(lower, qId, correctIndex);
+        const D = (upperCorrect - lowerCorrect) / groupSize;
+
+        // كتابة المعاملات
+        await db.collection('questions').doc(qId).update({
+          difficulty: p,
+          discrimination: D
+        });
+      }
+    }
+
+    async function countCorrectInGroup(group, qId, correctIndex) {
+      let count = 0;
+      for (const st of group) {
+        const snap = await db.collection('answers_temp').where('studentId', '==', st.studentId).where('qId', '==', qId).get();
+        if (!snap.empty && snap.docs[0].data().ans === correctIndex) count++;
+      }
+      return count;
+    }
+
     loadQuestions();
   </script>
 </body>
