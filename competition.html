@@ -180,6 +180,14 @@
       }
     }
 
+    async function saveAndExit() {
+      await saveTempAnswer();
+      if (confirm('سيتم حفظ إجاباتك والخروج.. هل تريد المتابعة؟')) {
+        clearInterval(timer);
+        location.href = 'index.html';  // ← أزل التعليق
+      }
+    }
+
     async function submitAll() {
       let correctCount = 0;
       questions.slice(0, 40).forEach(q => {          // ← بالضبط ٤٠
@@ -200,11 +208,11 @@
       await updateItemAnalysis();
       sessionStorage.setItem('result', JSON.stringify({
         correctCount,
-        timeSeconds: timeSpent,
+        timeSpent,
         weekId: 'week1'
       }));
       alert(`✅ تم الإرسال بنجاح! النتيجة: ${correctCount}/40`);
-      location.href = 'result.html';
+      location.href = 'result.html';  // ← أزل التعليق
     }
 
     // تحديث معاملات السؤال
